@@ -3,20 +3,12 @@ Group members : - Wissem ZAOUGA
                 - Ghada KHCHIMI
 ---              
 ## DESCRIPTION : 
-
+### Tradeily — Intelligent Trading Assistant
 Machine Learning project for analyzing and exploiting the BVMT (Bourse des Valeurs Mobilières de Tunis) dataset. This project aims to explore financial data, perform data preprocessing, visualization, and build predictive models.
 ---
 ## Project Overview
 
-The objective of this project is to apply Data Science and Machine Learning techniques on BVMT financial data in order to:
-
-- Understand market trends
-- Analyze stock performance
-- Visualize financial indicators
-- Build predictive models
-- Extract useful insights for decision-making
-
-key words : ARIMA , SARIMA , chatbot assitant
+Tradeily is a full-stack, AI-powered platform designed to support analysis and decision-making in the Tunisian stock market. It brings together forecasting, anomaly detection, portfolio management, and multi-agent orchestration within a single environment tailored to the BVMT.
 ---
 
 ## 🗂️ Dataset structure
