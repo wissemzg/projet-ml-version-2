@@ -1,9 +1,9 @@
-# projet-ML-2
+# Tradeily — Intelligent Trading Assistant
 Group members : - Wissem ZAOUGA
                 - Ghada KHCHIMI
 ---              
 ## DESCRIPTION : 
-### Tradeily — Intelligent Trading Assistant
+
 Machine Learning project for analyzing and exploiting the BVMT (Bourse des Valeurs Mobilières de Tunis) dataset. This project aims to explore financial data, perform data preprocessing, visualization, and build predictive models.
 ---
 ## Project Overview
