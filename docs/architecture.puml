@@ -1,0 +1,263 @@
+@startuml BVMT_Architecture
+!define RECTANGLE class
+
+skinparam backgroundColor #0d1117
+skinparam defaultFontColor #e6edf3
+skinparam defaultFontSize 11
+skinparam classFontColor #e6edf3
+skinparam classBackgroundColor #161b22
+skinparam classBorderColor #30363d
+skinparam packageBackgroundColor #0d1117
+skinparam packageBorderColor #30363d
+skinparam arrowColor #58a6ff
+skinparam noteBackgroundColor #1c2333
+skinparam noteBorderColor #30363d
+skinparam noteFontColor #8b949e
+skinparam stereotypeFontColor #58a6ff
+
+title **BVMT Trading Assistant — Architecture Multi-Agents**\n//IHEC Code Lab 2.0 — CrewAI + MCP + A2A//
+
+' ═══════════════════════════════════════
+' USER INTERFACE LAYER
+' ═══════════════════════════════════════
+
+package "Frontend — Flask Templates + Chart.js" <<UI>> #1c2333 {
+    [Market Overview\n/] as MO
+    [Stock Detail\n/stock/<code>] as SD
+    [Portfolio Manager\n/portfolio] as PM
+    [Surveillance CMF\n/surveillance] as SV
+    [Drift Analysis\n/drift] as DA
+    [Agent Dashboard\n/agents] as AD
+    [Chat Assistant\n/chat] as CA
+}
+
+' ═══════════════════════════════════════
+' API LAYER
+' ═══════════════════════════════════════
+
+package "REST API — Flask" <<API>> #161b22 {
+    [/api/market/overview] as API_MKT
+    [/api/stock/<code>] as API_STK
+    [/api/forecast/<code>] as API_FC
+    [/api/anomalies] as API_ANO
+    [/api/portfolio/*] as API_PF
+    [/api/drift/<code>] as API_DRF
+    [/api/drift/compare/<code>] as API_CMP
+    [/api/agents/*] as API_AGT
+    [/api/chat] as API_CHAT
+}
+
+' ═══════════════════════════════════════
+' CREWAI MULTI-AGENT SYSTEM
+' ═══════════════════════════════════════
+
+package "CrewAI Multi-Agent System" <<Agents>> #1c2333 {
+
+    package "Orchestrator — CrewManager" <<Orchestrator>> {
+        [OrchestratorAgent\n- full_stock_analysis()\n- market_scan()\n- portfolio_recommendation()\n- run_drift_check()] as ORCH
+    }
+
+    package "Specialized Agents" {
+        [ScraperAgent\n«DataHunter»\n\nilboursa.com\ntustex.com\nbvmt.com.tn\nwebmanagercenter\nkapitalis] as AGT_SCRP
+        
+        [ForecasterAgent\n«PriceOracle»\n\nSARIMA\nETS\nXGBoost\nEnsemble] as AGT_FC
+
+        [SentimentAgent\n«SentinelNLP»\n\nGPT-4o\nFrançais + Arabe] as AGT_SENT
+
+        [AnomalyAgent\n«WatchDog»\n\nIsolation Forest\nZ-score\nPatterns] as AGT_ANO
+
+        [DriftMonitorAgent\n«DriftDetective»\n\nKS Test\nT-Test\nLevene\nRolling MAPE] as AGT_DRF
+
+        [PortfolioAgent\n«WealthGuard»\n\nRisk Profiles\nDecision Engine] as AGT_PF
+    }
+}
+
+' ═══════════════════════════════════════
+' MCP TOOL REGISTRY
+' ═══════════════════════════════════════
+
+package "MCP Tool Registry" <<MCP>> #161b22 {
+    [scrape_url] as T1
+    [parse_html] as T2
+    [forecast_price] as T3
+    [analyze_sentiment] as T4
+    [detect_anomaly] as T5
+    [check_drift] as T6
+    [portfolio_optimize] as T7
+    [a2a_broadcast] as T8
+}
+
+' ═══════════════════════════════════════
+' A2A COMMUNICATION
+' ═══════════════════════════════════════
+
+package "A2A Message Bus" <<A2A>> #1c2333 {
+    [A2AMessage\n- sender: AgentRole\n- receiver: AgentRole\n- content: dict\n- msg_type: str\n- timestamp] as A2A
+}
+
+' ═══════════════════════════════════════
+' CORE MODULES
+' ═══════════════════════════════════════
+
+package "Core Modules" <<Modules>> #161b22 {
+    [DataLoader\n- load_all_data()\n- get_stock_list()\n- compute_tunindex()\n- add_technical_indicators()] as MOD_DL
+
+    [BVMTForecaster\n- fit_sarima()\n- fit_ets()\n- fit_xgboost()\n- forecast(horizon)\n- check_stationarity()] as MOD_FC
+
+    [SentimentAnalyzer\n- analyze(text)\n- GPT-4o (OpenAI)\n- FR + AR support] as MOD_SENT
+
+    [AnomalyDetector\n- detect_volume_spikes()\n- detect_price_anomalies()\n- isolation_forest()\n- detect_all()] as MOD_ANO
+
+    [PredictionDriftAnalyzer\n- backtest_forecast()\n- compute_data_drift()\n- compute_rolling_accuracy()] as MOD_DRF
+
+    [PortfolioSimulator\n- buy() / sell()\n- get_portfolio_value()\nDecisionEngine\n- recommend()\n- generate_suggestion()] as MOD_PF
+}
+
+' ═══════════════════════════════════════
+' SAFETY & CHAT
+' ═══════════════════════════════════════
+
+package "Safety & Chat" <<Safety>> #1c2333 {
+    [SafetyGuard\n- validate_code()\n- block_dangerous()] as SAFE
+    [ChatAgent\n- GPT-4o\n- OpenAI API\n- Context-aware] as CHAT
+    [AgentLogger\n- JSONL logging\n- Audit trail] as LOG
+}
+
+' ═══════════════════════════════════════
+' DATA LAYER
+' ═══════════════════════════════════════
+
+database "Data Sources" <<Data>> #161b22 {
+    [histo_cotation\n2016-2025\n(.txt + .csv)] as DATA_HIST
+    [web_histo_cotation\n2022-2023] as DATA_WEB
+}
+
+cloud "External Sources" <<External>> {
+    [ilboursa.com] as EXT1
+    [tustex.com] as EXT2
+    [bvmt.com.tn] as EXT3
+    [webmanagercenter] as EXT4
+    [GPT-4o\nOpenAI API] as EXT5
+}
+
+' ═══════════════════════════════════════
+' CONNECTIONS — UI → API
+' ═══════════════════════════════════════
+
+MO --> API_MKT : fetch
+SD --> API_STK : fetch
+SD --> API_FC : fetch
+PM --> API_PF : fetch
+SV --> API_ANO : fetch
+DA --> API_DRF : fetch
+DA --> API_CMP : fetch
+AD --> API_AGT : fetch
+CA --> API_CHAT : fetch
+
+' ═══════════════════════════════════════
+' CONNECTIONS — API → Agents / Modules
+' ═══════════════════════════════════════
+
+API_MKT --> MOD_DL
+API_STK --> MOD_FC
+API_STK --> MOD_ANO
+API_FC --> MOD_FC
+API_ANO --> MOD_ANO
+API_PF --> MOD_PF
+API_DRF --> MOD_DRF
+API_CMP --> MOD_DRF
+API_AGT --> ORCH
+API_CHAT --> CHAT
+
+' ═══════════════════════════════════════
+' CONNECTIONS — Orchestrator → Agents
+' ═══════════════════════════════════════
+
+ORCH --> AGT_SCRP : "1. Scrape"
+ORCH --> AGT_FC : "2. Forecast"
+ORCH --> AGT_SENT : "3. Sentiment"
+ORCH --> AGT_ANO : "4. Anomaly"
+ORCH --> AGT_DRF : "5. Drift"
+ORCH --> AGT_PF : "6. Recommend"
+
+' ═══════════════════════════════════════
+' CONNECTIONS — Agents ↔ MCP Tools
+' ═══════════════════════════════════════
+
+AGT_SCRP ..> T1 : uses
+AGT_SCRP ..> T2 : uses
+AGT_FC ..> T3 : uses
+AGT_SENT ..> T4 : uses
+AGT_ANO ..> T5 : uses
+AGT_DRF ..> T6 : uses
+AGT_PF ..> T7 : uses
+ORCH ..> T8 : uses
+
+' ═══════════════════════════════════════
+' CONNECTIONS — A2A
+' ═══════════════════════════════════════
+
+AGT_SCRP <--> A2A : send/receive
+AGT_FC <--> A2A : send/receive
+AGT_SENT <--> A2A : send/receive
+AGT_ANO <--> A2A : send/receive
+AGT_DRF <--> A2A : send/receive
+AGT_PF <--> A2A : send/receive
+ORCH <--> A2A : broadcast
+
+' ═══════════════════════════════════════
+' CONNECTIONS — Agents → Modules
+' ═══════════════════════════════════════
+
+AGT_FC --> MOD_FC : delegates
+AGT_SENT --> MOD_SENT : delegates
+AGT_ANO --> MOD_ANO : delegates
+AGT_DRF --> MOD_DRF : delegates
+AGT_PF --> MOD_PF : delegates
+
+' ═══════════════════════════════════════
+' CONNECTIONS — Data
+' ═══════════════════════════════════════
+
+MOD_DL --> DATA_HIST : reads
+MOD_DL --> DATA_WEB : reads
+AGT_SCRP --> EXT1 : HTTP
+AGT_SCRP --> EXT2 : HTTP
+AGT_SCRP --> EXT3 : HTTP
+AGT_SCRP --> EXT4 : HTTP
+CHAT --> EXT5 : API
+
+' ═══════════════════════════════════════
+' SAFETY
+' ═══════════════════════════════════════
+
+ORCH --> LOG : audit
+ORCH --> SAFE : validate
+
+' ═══════════════════════════════════════
+' WORKFLOW LEGEND
+' ═══════════════════════════════════════
+
+legend right
+  |= Element |= Description |
+  | **CrewAI** | Multi-agent orchestration |
+  | **MCP** | Model Context Protocol — Tool registry |
+  | **A2A** | Agent-to-Agent communication |
+  | **Workflow** | Sequential: Scrape → Forecast → Sentiment → Anomaly → Drift → Recommend |
+  | **Loop** | Iterative monitoring with stop conditions |
+endlegend
+
+note bottom of ORCH
+  **Workflow Séquentiel (full_stock_analysis)**
+  1. ScraperAgent → données temps réel
+  2. ForecasterAgent → prévision 5 jours
+  3. SentimentAgent → analyse NLP
+  4. AnomalyAgent → détection patterns
+  5. DriftMonitorAgent → vérification dérive
+  6. PortfolioAgent → recommandation finale
+
+  Chaque étape passe son résultat
+  à la suivante via A2A messages
+end note
+
+@enduml

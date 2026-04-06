@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}Agents IA — CrewAI Dashboard{% endblock %}
+{% block extra_css %}
+<style>
+    .agent-card { transition: all 0.3s; cursor: default; }
+    .agent-card:hover { transform: scale(1.02); }
+    .agent-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+    .workflow-step { border-left: 3px solid var(--border); padding-left: 1rem; margin-left: 0.5rem; margin-bottom: 1rem; position: relative; }
+    .workflow-step::before { content: ''; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+    .workflow-step.completed::before { background: var(--green); }
+    .workflow-step.active::before { background: var(--orange); animation: pulse 1.5s infinite; }
+    .log-entry { font-family: 'Consolas', monospace; font-size: 0.8rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(48,54,61,0.4); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h4 class="mb-1"><i class="bi bi-robot me-2 text-accent"></i>Dashboard Agents — CrewAI + MCP + A2A</h4>
+    <small class="text-secondary">Architecture multi-agents avec Model Context Protocol et communication Agent-to-Agent</small>
+</div>
+
+<div class="alert alert-secondary py-2 mb-4" style="border-color:var(--border);background:var(--bg-card)">
+    <div class="small text-secondary">
+        <strong>Comment lire ce dashboard :</strong>
+        l'analyse multi-agents exécute une séquence <em>Collecte → Prévision → Sentiment → Anomalies → Recommandation</em>.
+        Chaque étape affiche sa sortie (ce qui a été utilisé) et son temps d'exécution.
+    </div>
+</div>
+
+<!-- Architecture Overview -->
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <span><i class="bi bi-diagram-3 me-2"></i>Architecture des Agents</span>
+                <button class="btn btn-sm btn-outline-accent" onclick="refreshAgents()"><i class="bi bi-arrow-clockwise me-1"></i>Rafraîchir</button>
+            </div>
+            <div class="card-body">
+                <div class="row g-3" id="agentCards">
+                    <!-- Orchestrator -->
+                    <div class="col-md-12 mb-3">
+                        <div class="stat-card glow-accent text-center">
+                            <div class="agent-icon mx-auto mb-2" style="background:rgba(88,166,255,0.2)"><i class="bi bi-diagram-3 text-accent"></i></div>
+                            <h6 class="text-accent">CrewManager — Orchestrateur</h6>
+                            <small class="text-secondary">Coordonne tous les agents via A2A messaging et workflows séquentiels</small>
+                        </div>
+                    </div>
+
+                    <!-- Agent Row -->
+                    <div class="col-md-4 col-lg-2">
+                        <div class="stat-card agent-card">
+                            <div class="agent-icon mb-2" style="background:rgba(57,212,224,0.2)"><i class="bi bi-globe text-cyan"></i></div>
+                            <h6 class="mb-1">DataHunter</h6>
+                            <small class="text-secondary">Scraper Agent</small>
+                            <div class="mt-2"><span class="badge badge-accent">MCP: scrape_url</span></div>
+                            <div class="mt-1 small text-secondary">ilboursa, tustex, bvmt.com.tn</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-lg-2">
+                        <div class="stat-card agent-card">
+                            <div class="agent-icon mb-2" style="background:rgba(210,153,34,0.2)"><i class="bi bi-lightning text-orange"></i></div>
+                            <h6 class="mb-1">PriceOracle</h6>
+                            <small class="text-secondary">Forecaster Agent</small>
+                            <div class="mt-2"><span class="badge badge-orange">SARIMA+XGBoost</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-lg-2">
+                        <div class="stat-card agent-card">
+                            <div class="agent-icon mb-2" style="background:rgba(63,185,80,0.2)"><i class="bi bi-chat-heart text-green"></i></div>
+                            <h6 class="mb-1">SentinelNLP</h6>
+                            <small class="text-secondary">Sentiment Agent</small>
+                            <div class="mt-2"><span class="badge badge-green">GPT-4o NLP</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-lg-2">
+                        <div class="stat-card agent-card">
+                            <div class="agent-icon mb-2" style="background:rgba(248,81,73,0.2)"><i class="bi bi-shield-exclamation text-red"></i></div>
+                            <h6 class="mb-1">WatchDog</h6>
+                            <small class="text-secondary">Anomaly Agent</small>
+                            <div class="mt-2"><span class="badge badge-red">Isolation Forest</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-lg-2">
+                        <div class="stat-card agent-card">
+                            <div class="agent-icon mb-2" style="background:rgba(88,166,255,0.2)"><i class="bi bi-wallet2 text-accent"></i></div>
+                            <h6 class="mb-1">WealthGuard</h6>
+                            <small class="text-secondary">Portfolio Agent</small>
+                            <div class="mt-2"><span class="badge badge-accent">Risk Engine</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Workflow & Run Analysis -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-play-circle me-2"></i>Exécuter une Analyse Complète</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label text-secondary">Titre à analyser</label>
+                    <select class="form-select bg-dark text-light border-secondary" id="agentStock"><option value="">Chargement...</option></select>
+                </div>
+                <button class="btn btn-accent w-100 mb-3" onclick="runAgentAnalysis()" id="runAnalysisBtn"><i class="bi bi-rocket me-1"></i>Lancer l'analyse multi-agents</button>
+                <div id="analysisStatus" class="d-none">
+                    <div class="workflow-step" id="ws1"><strong>1. Scraping</strong> — Collecte de données<div class="small text-secondary mt-1" id="ws1out"></div></div>
+                    <div class="workflow-step" id="ws2"><strong>2. Forecasting</strong> — Prévision rapide (EMA + régression)<div class="small text-secondary mt-1" id="ws2out"></div></div>
+                    <div class="workflow-step" id="ws3"><strong>3. Sentiment</strong> — Analyse NLP GPT-4o<div class="small text-secondary mt-1" id="ws3out"></div></div>
+                    <div class="workflow-step" id="ws4"><strong>4. Anomaly</strong> — Détection de patterns suspects<div class="small text-secondary mt-1" id="ws4out"></div></div>
+                    <div class="workflow-step" id="ws5"><strong>5. Recommendation</strong> — Décision finale<div class="small text-secondary mt-1" id="ws5out"></div></div>
+                </div>
+                <div id="analysisResult" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between">
+                <span><i class="bi bi-journal-code me-2"></i>Workflow Log (A2A Messages)</span>
+                <span class="badge badge-accent" id="logCount">0</span>
+            </div>
+            <div class="card-body" style="max-height:400px;overflow-y:auto;font-size:0.85rem" id="workflowLog">
+                <p class="text-secondary">Aucune activité</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MCP Tools -->
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-tools me-2"></i>MCP Tool Registry</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3"><div class="stat-card"><div class="small text-secondary">Tool</div><code class="text-cyan">scrape_url</code><div class="mt-1 small text-secondary">Scrape une URL, retourne le texte</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="small text-secondary">Tool</div><code class="text-cyan">parse_html</code><div class="mt-1 small text-secondary">Parse HTML et extrait les données</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="small text-secondary">Tool</div><code class="text-cyan">forecast_price</code><div class="mt-1 small text-secondary">Prévision rapide (EMA + régression)</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="small text-secondary">Tool</div><code class="text-cyan">analyze_sentiment</code><div class="mt-1 small text-secondary">Sentiment GPT-4o multilingue</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="small text-secondary">Tool</div><code class="text-cyan">detect_anomaly</code><div class="mt-1 small text-secondary">Isolation Forest + z-score</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="small text-secondary">Tool</div><code class="text-cyan">portfolio_optimize</code><div class="mt-1 small text-secondary">Optimisation risk-reward</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="small text-secondary">Tool</div><code class="text-cyan">a2a_broadcast</code><div class="mt-1 small text-secondary">Agent-to-Agent messaging</div></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function init() {
+    const res = await fetch('/api/stocks');
+    const d = await res.json();
+    if (d.success) {
+        document.getElementById('agentStock').innerHTML = d.stocks.slice(0,40).map(s => `<option value="${s.code}">${s.stock} (${s.code})</option>`).join('');
+    }
+    refreshAgents();
+}
+
+async function refreshAgents() {
+    try {
+        const res = await fetch('/api/agents/status');
+        const d = await res.json();
+        if (d.success && d.workflow_log && d.workflow_log.length) {
+            document.getElementById('logCount').textContent = d.workflow_log.length;
+            document.getElementById('workflowLog').innerHTML = d.workflow_log.map(l => {
+                const ts = l.timestamp || '';
+                const sender = l.sender || l.agent || '';
+                const receiver = l.receiver || '';
+                const action = l.action || '';
+                const detail = l.detail || l.message || JSON.stringify(l);
+                const actionBadge = action === 'RESULT' ? 'badge-green' :
+                                    action === 'TASK_ASSIGN' ? 'badge-accent' :
+                                    action === 'DECISION' ? 'badge-orange' :
+                                    action === 'COMPLETE' ? 'badge-purple' : 'badge-accent';
+                return `<div class="d-flex align-items-start gap-2 py-1 border-bottom" style="border-color:var(--border)!important">
+                    <small class="text-secondary text-nowrap">${ts}</small>
+                    <span class="badge ${actionBadge} text-nowrap">${action}</span>
+                    <small><span class="text-accent">${sender}</span> → <span class="text-cyan">${receiver}</span></small>
+                    <small class="text-secondary text-truncate">${detail}</small>
+                </div>`;
+            }).join('');
+        }
+    } catch(e) { /* silent */ }
+}
+
+async function runAgentAnalysis() {
+    const code = document.getElementById('agentStock').value;
+    if (!code) return;
+
+    const btn = document.getElementById('runAnalysisBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm me-1"></div>Analyse en cours...';
+
+    document.getElementById('analysisStatus').classList.remove('d-none');
+    document.getElementById('analysisResult').innerHTML = '';
+
+    // Reset all steps
+    for (let i = 1; i <= 5; i++) {
+        const el = document.getElementById('ws' + i);
+        el.classList.remove('completed', 'active');
+        document.getElementById('ws' + i + 'out').textContent = '';
+    }
+
+    // Animate steps progressively
+    const stepNames = ['Scraping', 'Forecasting', 'Sentiment', 'Anomaly', 'Recommendation'];
+    let animInterval = setInterval(() => {
+        for (let i = 1; i <= 5; i++) {
+            const el = document.getElementById('ws' + i);
+            if (!el.classList.contains('completed') && !el.classList.contains('active')) {
+                el.classList.add('active');
+                break;
+            }
+        }
+    }, 1500);
+
+    try {
+        const res = await fetch(`/api/agents/analyze/${code}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({risk_profile: 'moderate'})
+        });
+        const d = await res.json();
+        clearInterval(animInterval);
+
+        // Update steps with real data
+        if (d.steps && d.steps.length) {
+            d.steps.forEach(s => {
+                const el = document.getElementById('ws' + s.step);
+                const outEl = document.getElementById('ws' + s.step + 'out');
+                el.classList.remove('active');
+                el.classList.add(s.status === 'completed' ? 'completed' : 'active');
+                outEl.textContent = s.output + (s.duration_ms ? ` (${s.duration_ms}ms)` : '');
+            });
+        }
+
+        if (d.success && d.data) {
+            const data = d.data;
+            const rec = data.recommendation || {};
+            let html = '<div class="alert alert-success py-2"><i class="bi bi-check-circle me-1"></i>Analyse terminée</div>';
+
+            // Recommendation card
+            const actionColor = rec.action === 'ACHETER' ? 'green' : rec.action === 'VENDRE' ? 'red' : 'orange';
+            html += `<div class="stat-card mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><span class="badge badge-${actionColor} fs-6">${rec.action || '—'}</span></h5>
+                    <span class="text-secondary">${rec.reason || ''}</span>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-4"><small class="text-secondary">Prix actuel</small><div class="fw-bold">${fmt(rec.current_price, 3)} TND</div></div>
+                    <div class="col-4"><small class="text-secondary">Cible J+5</small><div class="fw-bold text-accent">${fmt(rec.target_price, 3)} TND</div></div>
+                    <div class="col-4"><small class="text-secondary">Anomalies</small><div class="fw-bold">${rec.anomalies_count || 0}</div></div>
+                </div>
+            </div>`;
+
+            if (d.duration_ms) html += `<div class="small text-secondary"><i class="bi bi-clock me-1"></i>Durée totale: ${d.duration_ms}ms</div>`;
+            html += `<a href="/stock/${code}" class="btn btn-sm btn-outline-accent mt-2">Voir les détails</a>`;
+            document.getElementById('analysisResult').innerHTML = html;
+        } else {
+            document.getElementById('analysisResult').innerHTML = `<div class="alert alert-warning py-2">${d.error || 'Résultat partiel'}</div>`;
+        }
+
+        refreshAgents();
+    } catch(e) {
+        clearInterval(animInterval);
+        document.getElementById('analysisResult').innerHTML = `<div class="alert alert-danger py-2">${e.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-rocket me-1"></i>Lancer l\'analyse multi-agents';
+    }
+}
+
+init();
+</script>
+{% endblock %}

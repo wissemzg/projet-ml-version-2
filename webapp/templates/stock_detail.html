@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% block title %}{{ stock_code }} — Tradeili{% endblock %}
+{% block content %}
+<div id="loading" class="text-center py-5"><div class="spinner-border" style="width:3rem;height:3rem"></div><p class="mt-3 text-secondary">Analyse de {{ stock_code }}...</p></div>
+<div id="content" class="d-none fade-in">
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h4 class="mb-1"><i class="bi bi-building me-2 text-accent"></i><span id="stockName">{{ stock_code }}</span></h4>
+                <span class="badge badge-accent me-2">{{ stock_code }}</span>
+                <span class="text-secondary" id="recBadge"></span>
+            </div>
+            <div class="text-end">
+                <div class="stat-value" id="currentPrice">—</div>
+                <div id="priceChange"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-2"><div class="stat-card"><div class="stat-label">Ouverture</div><div class="stat-value fs-5" id="openPrice">—</div></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card"><div class="stat-label">Plus Haut</div><div class="stat-value fs-5 text-green" id="highPrice">—</div></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card"><div class="stat-label">Plus Bas</div><div class="stat-value fs-5 text-red" id="lowPrice">—</div></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card"><div class="stat-label">Volume</div><div class="stat-value fs-5 text-cyan" id="volume">—</div></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card"><div class="stat-label">RSI (14)</div><div class="stat-value fs-5" id="rsi">—</div></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card"><div class="stat-label">Volatilité 20j</div><div class="stat-value fs-5 text-orange" id="vol20">—</div></div></div>
+    </div>
+
+    <!-- Price Chart + Forecast -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <span><i class="bi bi-graph-up me-2"></i>Historique & Prévision</span>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-accent active" onclick="setRange(30)">30j</button>
+                        <button class="btn btn-outline-accent" onclick="setRange(60)">60j</button>
+                        <button class="btn btn-outline-accent" onclick="setRange(120)">120j</button>
+                    </div>
+                </div>
+                <div class="card-body"><canvas id="priceChart" height="320"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-lightning me-2"></i>Prévision 5 Jours</div>
+                <div class="card-body" id="forecastBox">
+                    <div class="text-center text-secondary">Chargement...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Technicals + Sentiment + Recommendation -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-activity me-2"></i>Indicateurs Techniques</div>
+                <div class="card-body">
+                    <canvas id="rsiGauge" height="100"></canvas>
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between mb-2"><span class="text-secondary">MACD</span><span id="macdVal">—</span></div>
+                        <div class="d-flex justify-content-between mb-2"><span class="text-secondary">Signal</span><span id="signalVal">—</span></div>
+                        <div class="d-flex justify-content-between mb-2"><span class="text-secondary">Histogramme</span><span id="histVal">—</span></div>
+                        <div class="d-flex justify-content-between mb-2"><span class="text-secondary">SMA 20</span><span id="sma20Val">—</span></div>
+                        <div class="d-flex justify-content-between mb-2"><span class="text-secondary">SMA 50</span><span id="sma50Val">—</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-chat-heart me-2"></i>Sentiment NLP</div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="fs-1" id="sentEmoji">😐</div>
+                        <div class="fs-5 fw-bold" id="sentLabel">—</div>
+                        <div class="text-secondary" id="sentScore">Score: —</div>
+                    </div>
+                    <div class="progress mb-2" style="height:20px">
+                        <div class="progress-bar bg-success" id="sentPos" style="width:33%">Positif</div>
+                        <div class="progress-bar bg-secondary" id="sentNeu" style="width:33%">Neutre</div>
+                        <div class="progress-bar bg-danger" id="sentNeg" style="width:33%">Négatif</div>
+                    </div>
+                    <small class="text-secondary" id="sentSources"></small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-signpost me-2"></i>Recommandation</div>
+                <div class="card-body" id="recBox">
+                    <div class="text-center text-secondary">Chargement...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Volume Chart + Anomalies -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><i class="bi bi-bar-chart-fill me-2"></i>Volume & MACD</div>
+                <div class="card-body"><canvas id="volumeChart" height="220"></canvas></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><i class="bi bi-exclamation-triangle me-2"></i>Anomalies Détectées</div>
+                <div class="card-body" style="max-height:300px;overflow-y:auto" id="anomalyBox">
+                    <p class="text-secondary">Aucune anomalie détectée.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+ 
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const STOCK_CODE = '{{ stock_code }}';
+let stockData = null;
+let priceChartInstance = null;
+
+async function loadStockDetail() {
+    try {
+        const res = await fetch(`/api/stock/${STOCK_CODE}`);
+        const d = await res.json();
+        if (!d.success) throw new Error(d.error);
+        stockData = d;
+
+        // Header
+        document.getElementById('stockName').textContent = d.stock.name;
+        document.getElementById('currentPrice').textContent = fmt(d.stock.current_price, 3) + ' TND';
+        const chg = d.stock.change_pct;
+        document.getElementById('priceChange').innerHTML = `<span class="badge ${pctBadge(chg)} px-3"><i class="bi ${pctIcon(chg)}"></i> ${chg>0?'+':''}${fmt(chg)}%</span>`;
+
+        // KPIs
+        document.getElementById('openPrice').textContent = fmt(d.stock.open, 3);
+        document.getElementById('highPrice').textContent = fmt(d.stock.high, 3);
+        document.getElementById('lowPrice').textContent = fmt(d.stock.low, 3);
+        document.getElementById('volume').textContent = fmtK(d.stock.volume);
+        const rsi = d.technicals.rsi;
+        const rsiEl = document.getElementById('rsi');
+        rsiEl.textContent = fmt(rsi, 1);
+        rsiEl.className = 'stat-value fs-5 ' + (rsi > 70 ? 'text-red' : rsi < 30 ? 'text-green' : 'text-accent');
+        document.getElementById('vol20').textContent = fmt(d.technicals.volatility_20, 2) + '%';
+
+        // Technicals
+        document.getElementById('macdVal').textContent = fmt(d.technicals.macd, 4);
+        document.getElementById('signalVal').textContent = fmt(d.technicals.macd_signal, 4);
+        document.getElementById('histVal').innerHTML = `<span class="${pctClass(d.technicals.macd_hist)}">${fmt(d.technicals.macd_hist, 4)}</span>`;
+        document.getElementById('sma20Val').textContent = fmt(d.technicals.sma_20, 3);
+        document.getElementById('sma50Val').textContent = fmt(d.technicals.sma_50, 3);
+
+        // RSI Gauge
+        new Chart('rsiGauge', {
+            type: 'doughnut',
+            data: {
+                labels: ['RSI', ''],
+                datasets: [{ data: [rsi, 100-rsi], backgroundColor: [rsi>70?'#f85149':rsi<30?'#3fb950':'#58a6ff', '#30363d'], borderWidth: 0 }]
+            },
+            options: { rotation: -90, circumference: 180, cutout: '75%', plugins: { legend:{display:false}, tooltip:{enabled:false} } }
+        });
+
+        // Sentiment
+        const s = d.sentiment;
+        document.getElementById('sentLabel').textContent = s.sentiment;
+        document.getElementById('sentScore').textContent = `Score: ${s.score}`;
+        document.getElementById('sentEmoji').textContent = s.score > 0.15 ? '😊' : s.score < -0.15 ? '😟' : '😐';
+        document.getElementById('sentPos').style.width = s.positive_pct + '%';
+        document.getElementById('sentPos').textContent = s.positive_pct + '%';
+        document.getElementById('sentNeu').style.width = s.neutral_pct + '%';
+        document.getElementById('sentNeg').style.width = s.negative_pct + '%';
+        document.getElementById('sentNeg').textContent = s.negative_pct + '%';
+        document.getElementById('sentSources').textContent = `${s.article_count} articles — ${s.sources.join(', ')}`;
+
+        // Recommendation
+        const rec = d.recommendation;
+        if (rec) {
+            const action = rec.action || rec.action_fr || 'HOLD';
+            const actionColor = (action === 'BUY' || action === 'ACHETER') ? 'green' : (action === 'SELL' || action === 'VENDRE') ? 'red' : 'orange';
+            const actionLabel = rec.action_fr || (action === 'BUY' ? 'ACHETER' : action === 'SELL' ? 'VENDRE' : 'CONSERVER');
+            const explanations = rec.explanations || rec.reasons || [];
+            document.getElementById('recBox').innerHTML = `
+                <div class="text-center mb-3">
+                    <div class="badge badge-${actionColor} fs-4 px-4 py-2">${actionLabel}</div>
+                    <div class="mt-2"><span class="badge badge-accent">Confiance: ${fmt((rec.confidence||0)*100, 0)}%</span></div>
+                </div>
+                <div class="small">${explanations.map(r => `<div class="mb-1"><i class="bi bi-check2 text-accent me-1"></i>${r}</div>`).join('')}</div>
+            `;
+            document.getElementById('recBadge').innerHTML = `<span class="badge badge-${actionColor}">${actionLabel}</span>`;
+        }
+
+        // Forecast box
+        const fc = d.forecast;
+        const fcData = (fc && fc.ensemble) ? fc.ensemble.forecast : (fc ? fc.forecast : null);
+        const fcCI = (fc && fc.ensemble) ? {lower: fc.ensemble.lower_ci, upper: fc.ensemble.upper_ci} : (fc ? fc.confidence_interval : null);
+        if (fcData && fcData.length > 0) {
+            const last = d.stock.current_price;
+            let fcHtml = `<div class="mb-3"><span class="badge badge-accent">Méthode: Ensemble (${(fc.ensemble||{}).num_models||3} modèles)</span></div>`;
+            fcHtml += fcData.map((p,i) => {
+                const diff = ((p - last)/last*100);
+                return `<div class="d-flex justify-content-between py-1 border-bottom border-secondary">
+                    <span>J+${i+1}</span>
+                    <span class="fw-bold">${fmt(p,3)} TND</span>
+                    <span class="${pctClass(diff)}">${diff>0?'+':''}${fmt(diff)}%</span>
+                </div>`;
+            }).join('');
+            if (fcCI && fcCI.lower && fcCI.upper) {
+                fcHtml += `<div class="mt-2 small text-secondary">IC 95%: [${fmt(fcCI.lower[fcCI.lower.length-1],3)} — ${fmt(fcCI.upper[fcCI.upper.length-1],3)}]</div>`;
+            }
+            document.getElementById('forecastBox').innerHTML = fcHtml;
+        } else {
+            document.getElementById('forecastBox').innerHTML = '<div class="text-center text-secondary"><i class="bi bi-exclamation-circle"></i> Prévision non disponible</div>';
+        }
+
+        // Anomalies
+        if (d.anomalies && d.anomalies.length > 0) {
+            document.getElementById('anomalyBox').innerHTML = d.anomalies.map(a => `
+                <div class="alert alert-${a.severity==='high'?'danger':a.severity==='medium'?'warning':'info'} py-2 mb-2">
+                    <strong>${a.type}</strong> — ${a.description||a.message||''}<br>
+                    <small class="text-secondary">${a.date||''}</small>
+                </div>
+            `).join('');
+        }
+
+        // Price Chart
+        drawPriceChart(120);
+
+        // Volume/MACD Chart
+        const hist = d.history;
+        new Chart('volumeChart', {
+            type: 'bar',
+            data: {
+                labels: hist.map(h=>h.date),
+                datasets: [
+                    { type:'bar', label:'Volume', data:hist.map(h=>h.volume), backgroundColor:'rgba(57,212,224,0.3)', yAxisID:'y' },
+                    { type:'line', label:'MACD', data:hist.map(h=>h.macd), borderColor:'#58a6ff', borderWidth:1.5, pointRadius:0, yAxisID:'y1' },
+                    { type:'line', label:'Signal', data:hist.map(h=>h.macd_signal), borderColor:'#d29922', borderWidth:1.5, pointRadius:0, yAxisID:'y1' }
+                ]
+            },
+            options: { responsive:true, plugins:{legend:{labels:{color:'#8b949e'}}}, scales:{
+                x:{ticks:{maxTicksLimit:8,color:'#8b949e'}},
+                y:{position:'left',ticks:{color:'#8b949e',callback:v=>fmtK(v)},grid:{color:'rgba(48,54,61,0.3)'}},
+                y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#8b949e'}}
+            }}
+        });
+
+        document.getElementById('loading').classList.add('d-none');
+        document.getElementById('content').classList.remove('d-none');
+
+        // Lazy-load heavy AI analysis in background
+        loadDeepAnalysis();
+    } catch(e) {
+        document.getElementById('loading').innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+    }
+}
+
+async function loadDeepAnalysis() {
+    try {
+        const res = await fetch(`/api/stock/${STOCK_CODE}/analysis`);
+        const d = await res.json();
+        if (!d.success) return;
+
+        // Update sentiment with GPT analysis
+        if (d.sentiment) {
+            const s = d.sentiment;
+            document.getElementById('sentLabel').textContent = s.sentiment;
+            document.getElementById('sentScore').textContent = `Score: ${s.score}`;
+            document.getElementById('sentEmoji').textContent = s.score > 0.15 ? '😊' : s.score < -0.15 ? '😟' : '😐';
+            document.getElementById('sentPos').style.width = s.positive_pct + '%';
+            document.getElementById('sentPos').textContent = s.positive_pct + '%';
+            document.getElementById('sentNeu').style.width = s.neutral_pct + '%';
+            document.getElementById('sentNeg').style.width = s.negative_pct + '%';
+            document.getElementById('sentNeg').textContent = s.negative_pct + '%';
+            document.getElementById('sentSources').textContent = `${s.article_count} articles — ${(s.sources||[]).join(', ')}`;
+        }
+
+        // Update forecast with real ML models
+        if (d.forecast) {
+            stockData.forecast = d.forecast;
+            const fc = d.forecast;
+            const fcData = (fc.ensemble) ? fc.ensemble.forecast : fc.forecast;
+            if (fcData && fcData.length > 0) {
+                const last = stockData.stock.current_price;
+                let fcHtml = `<div class="mb-3"><span class="badge badge-accent">Méthode: Ensemble (${(fc.ensemble||{}).num_models||3} modèles)</span></div>`;
+                fcHtml += fcData.map((p,i) => {
+                    const diff = ((p - last)/last*100);
+                    return `<div class="d-flex justify-content-between py-1 border-bottom border-secondary">
+                        <span>J+${i+1}</span>
+                        <span class="fw-bold">${fmt(p,3)} TND</span>
+                        <span class="${pctClass(diff)}">${diff>0?'+':''}${fmt(diff)}%</span>
+                    </div>`;
+                }).join('');
+                document.getElementById('forecastBox').innerHTML = fcHtml;
+            }
+            drawPriceChart(120);
+        }
+
+        // Update anomalies
+        if (d.anomalies && d.anomalies.length > 0) {
+            document.getElementById('anomalyBox').innerHTML = d.anomalies.map(a => `
+                <div class="alert alert-${a.severity==='high'?'danger':a.severity==='medium'?'warning':'info'} py-2 mb-2">
+                    <strong>${a.type}</strong> — ${a.description||a.message||''}<br>
+                    <small class="text-secondary">${a.date||''}</small>
+                </div>
+            `).join('');
+        }
+
+        // Update recommendation
+        if (d.recommendation) {
+            const rec = d.recommendation;
+            const action = rec.action || 'CONSERVER';
+            const actionColor = (action === 'ACHETER') ? 'green' : (action === 'VENDRE') ? 'red' : 'orange';
+            document.getElementById('recBox').innerHTML = `
+                <div class="text-center mb-3">
+                    <div class="badge badge-${actionColor} fs-4 px-4 py-2">${action}</div>
+                    <div class="mt-2"><span class="badge badge-accent">Confiance: ${fmt((rec.confidence||0)*100, 0)}%</span></div>
+                </div>
+                <div class="small"><div class="mb-1"><i class="bi bi-check2 text-accent me-1"></i>${rec.reason||''}</div></div>
+            `;
+            document.getElementById('recBadge').innerHTML = `<span class="badge badge-${actionColor}">${action}</span>`;
+        }
+    } catch(e) {
+        console.warn('Deep analysis failed:', e);
+    }
+}
+
+function drawPriceChart(n) {
+    if (!stockData) return;
+    const hist = stockData.history.slice(-n);
+    const fc = stockData.forecast;
+    const fcData = (fc && fc.ensemble) ? fc.ensemble.forecast : (fc ? fc.forecast : null);
+    if (priceChartInstance) priceChartInstance.destroy();
+
+    const datasets = [
+        { label:'Prix', data:hist.map(h=>h.close), borderColor:'#58a6ff', backgroundColor:'rgba(88,166,255,0.05)', fill:true, tension:0.3, pointRadius:0, borderWidth:2 },
+        { label:'SMA 20', data:hist.map(h=>h.sma_20), borderColor:'rgba(63,185,80,0.6)', borderWidth:1, pointRadius:0, borderDash:[4,4] },
+        { label:'BB sup', data:hist.map(h=>h.bb_upper), borderColor:'rgba(188,140,255,0.4)', borderWidth:1, pointRadius:0, borderDash:[2,2] },
+        { label:'BB inf', data:hist.map(h=>h.bb_lower), borderColor:'rgba(188,140,255,0.4)', borderWidth:1, pointRadius:0, borderDash:[2,2], fill:'-1', backgroundColor:'rgba(188,140,255,0.05)' },
+    ];
+    const labels = hist.map(h=>h.date);
+
+    if (fcData && fcData.length > 0) {
+        const fcLabels = fcData.map((_,i) => `J+${i+1}`);
+        labels.push(...fcLabels);
+        const pad = new Array(hist.length).fill(null);
+        const lastClose = hist[hist.length-1].close;
+        datasets.push({ label:'Prévision', data:[...pad.slice(0,-1), lastClose, ...fcData], borderColor:'#d29922', borderWidth:2, borderDash:[6,3], pointRadius:3, pointBackgroundColor:'#d29922' });
+        // Pad other datasets
+        datasets[0].data.push(...new Array(fcData.length).fill(null));
+        datasets[1].data.push(...new Array(fcData.length).fill(null));
+        datasets[2].data.push(...new Array(fcData.length).fill(null));
+        datasets[3].data.push(...new Array(fcData.length).fill(null));
+    }
+
+    priceChartInstance = new Chart('priceChart', {
+        type:'line', data:{labels, datasets},
+        options:{responsive:true, interaction:{intersect:false,mode:'index'}, plugins:{legend:{labels:{color:'#8b949e'}}}, scales:{x:{ticks:{maxTicksLimit:12,color:'#8b949e'}},y:{ticks:{color:'#8b949e'},grid:{color:'rgba(48,54,61,0.3)'}}}}
+    });
+}
+
+function setRange(n) {
+    document.querySelectorAll('.btn-group .btn').forEach(b=>b.classList.remove('active'));
+    event.target.classList.add('active');
+    drawPriceChart(n);
+}
+
+loadStockDetail();
+</script>
+{% endblock %}

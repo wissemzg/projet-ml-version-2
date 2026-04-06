@@ -1,0 +1,689 @@
+{% extends "base.html" %}
+{% block title %}Portefeuille — Tradeili{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h4 class="mb-1"><i class="bi bi-wallet2 me-2 text-accent"></i>Gestionnaire de Portefeuille</h4>
+    <small class="text-secondary">Simuler, optimiser et suivre vos investissements sur le marché tunisien</small>
+</div>
+
+<!-- Create Portfolio -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <label class="form-label text-secondary">Capital Initial (TND)</label>
+        <input type="number" class="form-control bg-dark text-light border-secondary" id="capital" value="5000" min="100">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label text-secondary">Profil de Risque</label>
+        <select class="form-select bg-dark text-light border-secondary" id="riskProfile">
+            <option value="conservative">Conservateur</option>
+            <option value="moderate" selected>Modéré</option>
+            <option value="aggressive">Agressif</option>
+        </select>
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-accent w-100" onclick="createPortfolio()"><i class="bi bi-plus-circle me-1"></i>Créer Portefeuille</button>
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-outline-accent w-100" onclick="getSuggestion()"><i class="bi bi-magic me-1"></i>Suggestion IA</button>
+    </div>
+</div>
+
+<!-- Portfolio Status -->
+<div id="portfolioInfo" class="d-none fade-in">
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-label">Capital Liquide</div><div class="stat-value fs-5 text-accent" id="pfCash">—</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-label">Valeur Titres</div><div class="stat-value fs-5 text-cyan" id="pfStocks">—</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-label">Valeur Totale</div><div class="stat-value fs-5 text-green" id="pfTotal">—</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-label">Performance</div><div class="stat-value fs-5" id="pfPerf">—</div></div></div>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-list-ul me-2"></i>Positions</div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>Titre</th><th>Quantité</th><th>PRU</th><th>Prix Actuel</th><th>P&L</th><th>Action</th></tr></thead>
+                <tbody id="positionsTable"><tr><td colspan="6" class="text-center text-secondary">Aucune position</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- IA Suggestion -->
+<div id="suggestionLoading" class="text-center py-4 d-none"><div class="spinner-border"></div><p class="mt-2 text-secondary">Analyse IA en cours...</p></div>
+<div id="suggestionBox" class="d-none fade-in">
+    <div class="card mb-4">
+        <div class="card-header text-accent"><i class="bi bi-stars me-2"></i>Suggestion IA — Portefeuille Optimisé</div>
+        <div class="card-body" id="suggestionContent"></div>
+    </div>
+</div>
+
+<!-- Buy/Sell -->
+<div id="tradeBox" class="d-none">
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-arrow-left-right me-2"></i>Passer un Ordre</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label text-secondary">Code Titre</label>
+                    <input type="text" class="form-control bg-dark text-light border-secondary" id="tradeCode" placeholder="Ex: BIAT">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label text-secondary">Prix (TND)</label>
+                    <input type="number" class="form-control bg-dark text-light border-secondary" id="tradePrice" step="0.001">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label text-secondary">Quantité</label>
+                    <input type="number" class="form-control bg-dark text-light border-secondary" id="tradeShares" min="1" value="10">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-success w-100" onclick="executeTrade('buy')"><i class="bi bi-cart-plus me-1"></i>Acheter</button>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-danger w-100" onclick="executeTrade('sell')"><i class="bi bi-cash-coin me-1"></i>Vendre</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Allocation Pie -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card"><div class="card-header"><i class="bi bi-pie-chart me-2"></i>Allocation</div><div class="card-body"><canvas id="allocationChart" height="250"></canvas></div></div>
+    </div>
+    <div class="col-md-6">
+        <div class="card"><div class="card-header"><i class="bi bi-journal-text me-2"></i>Historique des Transactions</div><div class="card-body" style="max-height:300px;overflow-y:auto" id="txHistory"><p class="text-secondary">Aucune transaction</p></div></div>
+    </div>
+</div>
+
+<!-- ══════════ RL Learning Summary ══════════ -->
+<div id="rlSummarySection" class="d-none">
+    <div class="page-header mt-4">
+        <h5 class="mb-1"><i class="bi bi-robot me-2 text-purple"></i>Apprentissage par Renforcement (RL)</h5>
+        <small class="text-secondary">Le système apprend de vos feedbacks pour personnaliser les recommandations</small>
+    </div>
+    <div class="row g-3 mb-3" id="rlSummaryCards"></div>
+</div>
+
+<!-- ══════════ SARIMA Stats Dashboard ══════════ -->
+<div class="page-header mt-4">
+    <h5 class="mb-1"><i class="bi bi-graph-up-arrow me-2 text-purple"></i>Tableau de Bord SARIMA — Analyse Quantitative</h5>
+    <small class="text-secondary">Statistiques de modélisation, diagnostics et prévisions pour les titres du portefeuille</small>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <label class="form-label text-secondary small">Titres à analyser (codes séparés par virgule)</label>
+        <input type="text" class="form-control bg-dark text-light border-secondary" id="sarimaCodes" placeholder="Ex: 767001,1605011 (vide = Top 5 volume)">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-accent w-100" onclick="loadSarimaDashboard()"><i class="bi bi-cpu me-1"></i>Analyser</button>
+    </div>
+</div>
+
+<div id="sarimaLoading" class="text-center py-4 d-none"><div class="spinner-border"></div><p class="mt-2 text-secondary">Calcul des modèles SARIMA / ETS / XGBoost...</p></div>
+
+<div id="sarimaDashboard" class="d-none fade-in">
+    <!-- KPI Row -->
+    <div class="row g-3 mb-4" id="sarimaKPIs"></div>
+
+    <!-- Forecast Charts & Model Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header"><i class="bi bi-lightning me-2 text-orange"></i>Prévisions Ensemble (5 Jours)</div>
+                <div class="card-body"><canvas id="sarForecastChart" height="300"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-clipboard-data me-2"></i>Critères d'Information</div>
+                <div class="card-body"><canvas id="sarAICChart" height="300"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Details Table -->
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-table me-2"></i>Détails des Modèles SARIMA</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Titre</th>
+                            <th>Prix</th>
+                            <th>Prévision J+5</th>
+                            <th>Var.</th>
+                            <th>AIC</th>
+                            <th>BIC</th>
+                            <th>RMSE</th>
+                            <th>ADF stat</th>
+                            <th>ADF p-val</th>
+                            <th>Stationnaire</th>
+                            <th>DA %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sarimaTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confidence Interval Chart -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header"><i class="bi bi-bar-chart me-2 text-cyan"></i>Intervalles de Confiance (95%)</div>
+                <div class="card-body"><canvas id="sarCIChart" height="250"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header"><i class="bi bi-shield-check me-2 text-green"></i>Stationnarité & Diagnostics</div>
+                <div class="card-body"><canvas id="sarDiagChart" height="250"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let portfolioId = null;
+let allocChartInst = null;
+
+// Auto-load existing portfolio on page load
+(async function() {
+    try {
+        const res = await fetch('/api/portfolio/my');
+        const d = await res.json();
+        if (d.success && d.portfolio_id) {
+            portfolioId = d.portfolio_id;
+            document.getElementById('portfolioInfo').classList.remove('d-none');
+            document.getElementById('tradeBox').classList.remove('d-none');
+            // Pre-fill capital/risk from existing portfolio
+            if (d.initial_capital) document.getElementById('capital').value = d.initial_capital;
+            if (d.risk_profile) {
+                const sel = document.getElementById('riskProfile');
+                for (let opt of sel.options) {
+                    if (opt.value === d.risk_profile) { opt.selected = true; break; }
+                }
+            }
+            updatePortfolio();
+        }
+    } catch(e) { console.log('No existing portfolio'); }
+
+    // Load RL summary
+    try {
+        const rlRes = await fetch('/api/rl/summary');
+        const rlD = await rlRes.json();
+        if (rlD.success && rlD.total_feedback > 0) {
+            document.getElementById('rlSummarySection').classList.remove('d-none');
+            const topStocks = (rlD.top_stocks || []).map(s => `<span class="badge badge-green me-1">${s.code} (${fmt(s.score,2)})</span>`).join('');
+            const bottomStocks = (rlD.bottom_stocks || []).filter(s => s.score < 0).map(s => `<span class="badge badge-red me-1">${s.code} (${fmt(s.score,2)})</span>`).join('');
+            document.getElementById('rlSummaryCards').innerHTML = `
+                <div class="col-6 col-md-3"><div class="stat-card">
+                    <div class="stat-label">Total Feedbacks</div>
+                    <div class="stat-value fs-4 text-accent">${rlD.total_feedback}</div>
+                </div></div>
+                <div class="col-6 col-md-3"><div class="stat-card">
+                    <div class="stat-label">Taux Positif</div>
+                    <div class="stat-value fs-4 text-green">${fmt(rlD.positive_rate||0)}%</div>
+                </div></div>
+                <div class="col-6 col-md-3"><div class="stat-card">
+                    <div class="stat-label">Ajustement Risque</div>
+                    <div class="stat-value fs-5 ${rlD.risk_adjustment > 0 ? 'text-green' : 'text-red'}">${rlD.risk_adjustment > 0 ? '+' : ''}${fmt(rlD.risk_adjustment||0, 3)}</div>
+                </div></div>
+                <div class="col-12 col-md-3"><div class="stat-card">
+                    <div class="stat-label">Top Titres</div>
+                    <div class="mt-1">${topStocks || '<span class="text-secondary small">Aucun</span>'}</div>
+                </div></div>`;
+        }
+    } catch(e) { console.log('No RL data'); }
+})();
+
+async function createPortfolio() {
+    const capital = document.getElementById('capital').value;
+    const risk = document.getElementById('riskProfile').value;
+    const res = await fetch('/api/portfolio/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({capital, risk_profile:risk})});
+    const d = await res.json();
+    if (d.success) {
+        portfolioId = d.portfolio_id;
+        document.getElementById('portfolioInfo').classList.remove('d-none');
+        document.getElementById('tradeBox').classList.remove('d-none');
+        updatePortfolio();
+    }
+}
+
+async function updatePortfolio() {
+    if (!portfolioId) return;
+    const res = await fetch(`/api/portfolio/${portfolioId}/status`);
+    const d = await res.json();
+    if (!d.success) return;
+
+    document.getElementById('pfCash').textContent = fmt(d.cash||d.available_cash, 2) + ' TND';
+    document.getElementById('pfStocks').textContent = fmt(d.invested||0, 2) + ' TND';
+    document.getElementById('pfTotal').textContent = fmt(d.total_value||0, 2) + ' TND';
+    const perf = d.roi_pct || d.performance_pct || 0;
+    const perfEl = document.getElementById('pfPerf');
+    perfEl.textContent = (perf>0?'+':'') + fmt(perf) + '%';
+    perfEl.className = 'stat-value fs-5 ' + pctClass(perf);
+
+    const positions = d.positions || d.holdings || [];
+    const tb = document.getElementById('positionsTable');
+    if (positions.length === 0) {
+        tb.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">Aucune position</td></tr>';
+    } else {
+        tb.innerHTML = positions.map(p => {
+            const code = p.code || p.stock_code || '';
+            const name = p.name || p.stock_name || code;
+            const pnl = ((p.current_price - p.avg_price) / p.avg_price * 100) || 0;
+            return `<tr>
+                <td><strong>${name||'—'}</strong></td>
+                <td>${p.shares}</td>
+                <td>${fmt(p.avg_price, 3)}</td>
+                <td>${fmt(p.current_price, 3)}</td>
+                <td class="${pctClass(pnl)}">${pnl>0?'+':''}${fmt(pnl)}%</td>
+                <td><button class="btn btn-sm btn-outline-danger" onclick="quickSell('${code}',${p.current_price},${p.shares})">Vendre</button></td>
+            </tr>`;
+        }).join('');
+
+        // Allocation chart
+        if (allocChartInst) allocChartInst.destroy();
+        const colors = ['#58a6ff','#3fb950','#d29922','#bc8cff','#39d4e0','#f85149','#8b949e'];
+        allocChartInst = new Chart('allocationChart', {
+            type: 'doughnut',
+            data: {
+                labels: [...positions.map(p=>(p.code||p.stock_code||'')), 'Cash'],
+                datasets: [{ data: [...positions.map(p=>(p.shares*p.current_price)||0), d.cash||d.available_cash||0], backgroundColor: colors, borderWidth: 0 }]
+            },
+            options: { responsive:true, plugins:{legend:{position:'right', labels:{color:'#8b949e'}}} }
+        });
+    }
+}
+
+async function executeTrade(action) {
+    if (!portfolioId) { alert('Créez d\'abord un portefeuille'); return; }
+    const code = document.getElementById('tradeCode').value;
+    const price = parseFloat(document.getElementById('tradePrice').value);
+    const shares = parseInt(document.getElementById('tradeShares').value);
+    if (!code || !price || !shares) { alert('Remplissez tous les champs'); return; }
+
+    const res = await fetch(`/api/portfolio/${portfolioId}/${action}`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({stock_code:code, stock_name:code, price, shares})
+    });
+    const d = await res.json();
+    if (d.success) {
+        updatePortfolio();
+        const hist = document.getElementById('txHistory');
+        const now = new Date().toLocaleTimeString('fr-TN');
+        hist.innerHTML = `<div class="mb-2 p-2 border-bottom border-secondary">
+            <span class="badge ${action==='buy'?'badge-green':'badge-red'}">${action==='buy'?'ACHAT':'VENTE'}</span>
+            <strong>${code}</strong> x${shares} @ ${fmt(price,3)} TND <small class="text-secondary float-end">${now}</small>
+        </div>` + (hist.querySelector('p') ? '' : hist.innerHTML);
+    } else {
+        alert(d.error || 'Erreur');
+    }
+}
+
+function quickSell(code, price, shares) {
+    document.getElementById('tradeCode').value = code;
+    document.getElementById('tradePrice').value = price;
+    document.getElementById('tradeShares').value = shares;
+    executeTrade('sell');
+}
+
+async function getSuggestion() {
+    const capital = document.getElementById('capital').value;
+    const risk = document.getElementById('riskProfile').value;
+    document.getElementById('suggestionLoading').classList.remove('d-none');
+    document.getElementById('suggestionBox').classList.add('d-none');
+
+    try {
+        const res = await fetch('/api/portfolio/suggest', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({capital, risk_profile:risk})});
+        const d = await res.json();
+        document.getElementById('suggestionLoading').classList.add('d-none');
+
+        if (d.success) {
+            const allocs = d.allocations || d.suggestions || [];
+            const msg = d.message || '';
+            let html = `<div class="mb-3"><span class="badge badge-accent">Capital: ${fmtK(capital)} TND</span> <span class="badge badge-purple">${risk}</span></div>`;
+            if (msg) html += `<div class="alert" style="background:rgba(88,166,255,0.1);border:1px solid var(--accent);color:var(--accent)"><i class="bi bi-lightbulb me-2"></i>${msg}</div>`;
+            if (allocs.length === 0) {
+                html += `<div class="text-center py-4 text-secondary"><i class="bi bi-cash-stack fs-1"></i><p class="mt-2">Aucune opportunité d'achat — garder en liquidités</p></div>`;
+            } else {
+                html += '<div class="row g-3">';
+                allocs.forEach(a => {
+                    const name = a.stock_name || a.stock || a.stock_code || '—';
+                    const code = a.stock_code || a.code || '—';
+                    const weight = a.allocation_pct || a.weight_pct || a.weight || 0;
+                    const rlAdj = a.rl_adjustment != null ? ` | RL: ${a.rl_adjustment > 0 ? '+' : ''}${fmt(a.rl_adjustment, 3)}` : '';
+                    html += `<div class="col-md-4"><div class="stat-card">
+                        <div class="fw-bold text-accent">${name}</div>
+                        <div class="small text-secondary">Code: ${code} | Confiance: ${fmt(a.confidence||0)}%${rlAdj}</div>
+                        <div class="mt-2">Allocation: <strong>${fmt(weight)}%</strong></div>
+                        <div>Montant: <strong>${fmt(a.amount||0, 2)} TND</strong></div>
+                        <div>Prix unitaire: <strong>${fmt(a.price||0, 3)} TND</strong></div>
+                        <div>Actions: <strong>${a.shares||'—'}</strong></div>
+                        ${a.explanations ? '<div class="mt-2 small text-secondary">' + a.explanations.slice(0,3).map(e=>'<div>'+e+'</div>').join('') + '</div>' : ''}
+                        <div class="mt-2">
+                            <span class="badge badge-green">${a.action||'ACHETER'}</span>
+                            <button class="btn btn-sm btn-outline-success ms-2" onclick="sendRLFeedback('${code}','${name}','buy',true)" title="J'aime cette suggestion"><i class="bi bi-hand-thumbs-up"></i></button>
+                            <button class="btn btn-sm btn-outline-danger ms-1" onclick="sendRLFeedback('${code}','${name}','buy',false)" title="Je n'aime pas"><i class="bi bi-hand-thumbs-down"></i></button>
+                        </div>
+                    </div></div>`;
+                });
+                html += '</div>';
+            }
+            if (d.invested) html += `<div class="mt-3 alert" style="background:rgba(63,185,80,0.1);border:1px solid var(--green);color:var(--green)"><i class="bi bi-wallet2 me-2"></i>Investi: ${fmt(d.invested,2)} TND | Liquidités restantes: ${fmt(d.cash_remaining,2)} TND</div>`;
+
+            // Add button to apply suggestion
+            html += `<div class="mt-3 text-center"><button class="btn btn-accent" onclick="applySuggestion()"><i class="bi bi-check-circle me-1"></i>Appliquer cette suggestion</button></div>`;
+            
+            document.getElementById('suggestionContent').innerHTML = html;
+            document.getElementById('suggestionBox').classList.remove('d-none');
+            
+            // Store suggestion data for applying later
+            window._lastSuggestion = { allocs, capital, risk };
+        }
+    } catch(e) {
+        document.getElementById('suggestionLoading').innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+    }
+}
+
+async function applySuggestion() {
+    if (!window._lastSuggestion) return;
+    const { allocs, capital, risk } = window._lastSuggestion;
+    
+    // Create portfolio if none exists
+    if (!portfolioId) {
+        const res = await fetch('/api/portfolio/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({capital, risk_profile:risk})});
+        const d = await res.json();
+        if (d.success) {
+            portfolioId = d.portfolio_id;
+            document.getElementById('portfolioInfo').classList.remove('d-none');
+            document.getElementById('tradeBox').classList.remove('d-none');
+        }
+    }
+    
+    // Buy each suggested allocation
+    const hist = document.getElementById('txHistory');
+    let firstTx = true;
+    for (const a of allocs) {
+        const code = a.stock_code || a.code;
+        const name = a.stock_name || a.stock || code;
+        const price = a.price || 0;
+        const shares = a.shares || 0;
+        if (!code || !price || !shares) continue;
+        
+        const res = await fetch(`/api/portfolio/${portfolioId}/buy`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({stock_code:code, stock_name:name, price, shares})
+        });
+        const d = await res.json();
+        if (d.success) {
+            const now = new Date().toLocaleTimeString('fr-TN');
+            const txHtml = `<div class="mb-2 p-2 border-bottom border-secondary">
+                <span class="badge badge-green">ACHAT</span>
+                <strong>${name}</strong> x${shares} @ ${fmt(price,3)} TND <small class="text-secondary float-end">${now}</small>
+            </div>`;
+            if (firstTx) { hist.innerHTML = txHtml; firstTx = false; }
+            else { hist.innerHTML = txHtml + hist.innerHTML; }
+        }
+    }
+    
+    // Update portfolio display
+    await updatePortfolio();
+}
+
+// ══════════ RL Feedback ══════════
+async function sendRLFeedback(stockCode, stockName, action, liked) {
+    try {
+        const res = await fetch('/api/rl/feedback', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ stock_code: stockCode, stock_name: stockName, action, liked, reason: liked ? 'user_approved' : 'user_rejected' })
+        });
+        const d = await res.json();
+        if (d.success) {
+            const icon = liked ? '👍' : '👎';
+            const btn = event.target.closest('button');
+            btn.classList.add(liked ? 'btn-success' : 'btn-danger');
+            btn.classList.remove(liked ? 'btn-outline-success' : 'btn-outline-danger');
+            // Show brief feedback toast
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed bottom-0 end-0 p-3';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `<div class="alert ${liked ? 'alert-success' : 'alert-warning'} py-2 px-3 small">${icon} Feedback enregistré pour ${stockName} (score: ${fmt(d.stock_score||0, 3)})</div>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    } catch(e) { console.error('RL feedback error:', e); }
+}
+
+// ══════════ SARIMA Dashboard ══════════
+let sarForecastInst = null, sarAICInst = null, sarCIInst = null, sarDiagInst = null;
+
+async function loadSarimaDashboard() {
+    const codesInput = document.getElementById('sarimaCodes').value.trim();
+    const codes = codesInput ? codesInput.split(',').map(c => c.trim()).filter(Boolean) : [];
+
+    document.getElementById('sarimaLoading').classList.remove('d-none');
+    document.getElementById('sarimaDashboard').classList.add('d-none');
+
+    try {
+        const res = await fetch('/api/portfolio/sarima_dashboard', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ stock_codes: codes })
+        });
+        const d = await res.json();
+        document.getElementById('sarimaLoading').classList.add('d-none');
+
+        if (!d.success || !d.stocks || d.stocks.length === 0) {
+            document.getElementById('sarimaLoading').classList.remove('d-none');
+            document.getElementById('sarimaLoading').innerHTML = '<div class="alert alert-warning">Aucune donnée disponible</div>';
+            return;
+        }
+
+        const stocks = d.stocks;
+        document.getElementById('sarimaDashboard').classList.remove('d-none');
+
+        // KPIs
+        const avgModels = (stocks.reduce((s, st) => s + (st.num_models || 0), 0) / stocks.length).toFixed(1);
+        const statCount = stocks.filter(s => s.stationary).length;
+        const aicVals = stocks.filter(s => s.aic != null);
+        const avgAIC = aicVals.length > 0
+            ? (aicVals.reduce((s, st) => s + st.aic, 0) / aicVals.length).toFixed(1)
+            : '—';
+        const rmseVals = stocks.filter(s => s.rmse != null);
+        const avgRMSE = rmseVals.length > 0
+            ? (rmseVals.reduce((s, st) => s + st.rmse, 0) / rmseVals.length).toFixed(4)
+            : '—';
+        const bullish = stocks.filter(s => {
+            const fc = s.forecast || [];
+            return fc.length > 0 && fc[fc.length - 1] > s.current_price;
+        }).length;
+
+        document.getElementById('sarimaKPIs').innerHTML = `
+            <div class="col-6 col-md-3"><div class="stat-card">
+                <div class="stat-label">Titres Analysés</div>
+                <div class="stat-value fs-4 text-accent">${stocks.length}</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="stat-card">
+                <div class="stat-label">AIC Moyen</div>
+                <div class="stat-value fs-4 text-cyan">${avgAIC}</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="stat-card">
+                <div class="stat-label">Séries Stationnaires</div>
+                <div class="stat-value fs-4 text-green">${statCount} / ${stocks.length}</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="stat-card">
+                <div class="stat-label">RMSE Moyen</div>
+                <div class="stat-value fs-4 text-orange">${avgRMSE}</div>
+            </div></div>`;
+
+        // Forecast Chart
+        if (sarForecastInst) sarForecastInst.destroy();
+        const colors = ['#58a6ff','#3fb950','#d29922','#bc8cff','#39d4e0','#f85149','#ff7b72','#79c0ff'];
+        const fcDatasets = stocks.map((s, i) => {
+            const fc = s.forecast || [];
+            const dates = s.forecast_dates || fc.map((_, j) => 'J+' + (j + 1));
+            return {
+                label: s.stock_name || s.stock_code,
+                data: fc.map(v => typeof v === 'number' ? +v.toFixed(3) : v),
+                borderColor: colors[i % colors.length],
+                backgroundColor: colors[i % colors.length] + '20',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointBackgroundColor: colors[i % colors.length],
+                fill: false,
+                tension: 0.3
+            };
+        });
+        const maxDates = Math.max(...stocks.map(s => (s.forecast_dates || s.forecast || []).length));
+        const labels = stocks[0].forecast_dates || Array.from({length: maxDates}, (_, i) => 'J+' + (i + 1));
+
+        sarForecastInst = new Chart('sarForecastChart', {
+            type: 'line',
+            data: { labels, datasets: fcDatasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8b949e' } } },
+                scales: {
+                    x: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(48,54,61,0.4)' } },
+                    y: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(48,54,61,0.4)' } }
+                }
+            }
+        });
+
+        // AIC/BIC Chart
+        if (sarAICInst) sarAICInst.destroy();
+        const aicStocks = stocks.filter(s => s.aic);
+        sarAICInst = new Chart('sarAICChart', {
+            type: 'bar',
+            data: {
+                labels: aicStocks.map(s => (s.stock_name || s.stock_code).substring(0, 12)),
+                datasets: [
+                    { label: 'AIC', data: aicStocks.map(s => s.aic), backgroundColor: 'rgba(88,166,255,0.6)', borderWidth: 0 },
+                    { label: 'BIC', data: aicStocks.map(s => s.bic || 0), backgroundColor: 'rgba(188,140,255,0.6)', borderWidth: 0 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                plugins: { legend: { labels: { color: '#8b949e' } } },
+                scales: {
+                    x: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(48,54,61,0.4)' } },
+                    y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { display: false } }
+                }
+            }
+        });
+
+        // Model Details Table
+        const tb = document.getElementById('sarimaTable');
+        tb.innerHTML = stocks.map(s => {
+            const fc = s.forecast || [];
+            const lastFc = fc.length > 0 ? fc[fc.length - 1] : null;
+            const varPct = lastFc && s.current_price ? ((lastFc - s.current_price) / s.current_price * 100) : 0;
+            const adfP = s.adf_pvalue != null ? (+s.adf_pvalue).toFixed(4) : '—';
+            const adfStat = s.adf_statistic != null ? (+s.adf_statistic).toFixed(4) : '—';
+            const aicVal = s.aic != null ? (+s.aic).toFixed(1) : '—';
+            const bicVal = s.bic != null ? (+s.bic).toFixed(1) : '—';
+            const rmseVal = s.rmse != null ? (+s.rmse).toFixed(4) : '—';
+            const daVal = s.directional_accuracy != null ? (+s.directional_accuracy).toFixed(1) + '%' : '—';
+            return `<tr>
+                <td><a href="/stock/${s.stock_code}" class="text-accent">${(s.stock_name||s.stock_code).substring(0,20)}</a></td>
+                <td class="fw-bold">${fmt(s.current_price, 3)}</td>
+                <td class="fw-bold">${lastFc ? fmt(lastFc, 3) : '—'}</td>
+                <td class="${pctClass(varPct)}">${varPct > 0 ? '+' : ''}${fmt(varPct, 2)}%</td>
+                <td>${aicVal}</td>
+                <td>${bicVal}</td>
+                <td>${rmseVal}</td>
+                <td>${adfStat}</td>
+                <td>${adfP}</td>
+                <td>${s.stationary ? '<span class="badge badge-green">Oui</span>' : '<span class="badge badge-red">Non</span>'}</td>
+                <td>${daVal}</td>
+            </tr>`;
+        }).join('');
+
+        // Confidence Interval Chart
+        if (sarCIInst) sarCIInst.destroy();
+        const ciStock = stocks.find(s => s.lower_ci && s.lower_ci.length > 0) || stocks[0];
+        if (ciStock && ciStock.forecast) {
+            const ciLabels = ciStock.forecast_dates || ciStock.forecast.map((_, i) => 'J+' + (i + 1));
+            sarCIInst = new Chart('sarCIChart', {
+                type: 'line',
+                data: {
+                    labels: ciLabels,
+                    datasets: [
+                        {
+                            label: 'Prévision',
+                            data: ciStock.forecast.map(v => typeof v === 'number' ? +v.toFixed(3) : v),
+                            borderColor: '#58a6ff', borderWidth: 2, pointRadius: 4, fill: false
+                        },
+                        {
+                            label: 'IC Sup.',
+                            data: (ciStock.upper_ci || []).map(v => typeof v === 'number' ? +v.toFixed(3) : v),
+                            borderColor: 'rgba(63,185,80,0.4)', borderWidth: 1, pointRadius: 0,
+                            fill: '+1', backgroundColor: 'rgba(63,185,80,0.08)', borderDash: [5, 3]
+                        },
+                        {
+                            label: 'IC Inf.',
+                            data: (ciStock.lower_ci || []).map(v => typeof v === 'number' ? +v.toFixed(3) : v),
+                            borderColor: 'rgba(248,81,73,0.4)', borderWidth: 1, pointRadius: 0,
+                            fill: false, borderDash: [5, 3]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#8b949e' } },
+                               title: { display: true, text: ciStock.stock_name || ciStock.stock_code, color: '#8b949e' } },
+                    scales: {
+                        x: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(48,54,61,0.4)' } },
+                        y: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(48,54,61,0.4)' } }
+                    }
+                }
+            });
+        }
+
+        // Diagnostics Chart (stationarity radar)
+        if (sarDiagInst) sarDiagInst.destroy();
+        sarDiagInst = new Chart('sarDiagChart', {
+            type: 'radar',
+            data: {
+                labels: stocks.map(s => (s.stock_name || s.stock_code).substring(0, 10)),
+                datasets: [
+                    {
+                        label: 'Stationnarité (1=Oui)',
+                        data: stocks.map(s => s.stationary ? 1 : 0),
+                        backgroundColor: 'rgba(63,185,80,0.2)', borderColor: '#3fb950', borderWidth: 2, pointBackgroundColor: '#3fb950'
+                    },
+                    {
+                        label: 'Nb Modèles (norm.)',
+                        data: stocks.map(s => (s.num_models || 0) / 3),
+                        backgroundColor: 'rgba(88,166,255,0.2)', borderColor: '#58a6ff', borderWidth: 2, pointBackgroundColor: '#58a6ff'
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8b949e' } } },
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(48,54,61,0.5)' },
+                        grid: { color: 'rgba(48,54,61,0.5)' },
+                        pointLabels: { color: '#8b949e', font: { size: 10 } },
+                        ticks: { color: '#8b949e', backdropColor: 'transparent', stepSize: 0.5 },
+                        min: 0, max: 1
+                    }
+                }
+            }
+        });
+
+    } catch(e) {
+        document.getElementById('sarimaLoading').classList.remove('d-none');
+        document.getElementById('sarimaLoading').innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+    }
+}
+</script>
+{% endblock %}

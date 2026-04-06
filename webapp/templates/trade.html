@@ -1,0 +1,664 @@
+{% extends "base.html" %}
+{% block title %}Trading — Tradeili{% endblock %}
+{% block extra_css %}
+<style>
+    .trade-header { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+    .trade-price { font-size: 2.2rem; font-weight: 700; }
+    .trade-change { font-size: 1.1rem; font-weight: 600; }
+    .chart-container { position: relative; border-radius: 12px; overflow: hidden; background: var(--bg-card); border: 1px solid var(--border); }
+    .chart-toolbar { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .chart-toolbar .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.6rem; }
+    .period-btn.active { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
+    .indicator-toggle { cursor: pointer; user-select: none; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; border: 1px solid var(--border); transition: all 0.2s; }
+    .indicator-toggle.active { background: rgba(88,166,255,0.15); border-color: var(--accent); color: var(--accent); }
+    .indicator-toggle:hover { border-color: var(--accent); }
+    .stock-selector { max-width: 300px; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; animation: livePulse 1.5s infinite; }
+    @keyframes livePulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(63,185,80,0.4); } 50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(63,185,80,0); } }
+    .order-book { font-size: 0.8rem; }
+    .order-book .bid { color: var(--green); }
+    .order-book .ask { color: var(--red); }
+    .depth-bar { height: 4px; border-radius: 2px; transition: width 0.3s; }
+    .crosshair-info { position: absolute; top: 8px; left: 8px; z-index: 10; background: rgba(28,35,51,0.9); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.75rem; pointer-events: none; }
+    .mini-stat { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .mini-stat span { white-space: nowrap; }
+    #rsiSubChart, #macdSubChart { border-top: 1px solid var(--border); }
+    .watchlist-item { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; }
+    .watchlist-item:hover { background: rgba(88,166,255,0.08); }
+    .watchlist-item.active { background: rgba(88,166,255,0.12); border-left: 3px solid var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <!-- Left sidebar: Watchlist -->
+    <div class="col-lg-2">
+        <div class="card" style="max-height: calc(100vh - 120px); overflow-y: auto;">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bookmark-star me-1"></i>Watchlist</span>
+                <span class="live-dot" title="Données en temps réel"></span>
+            </div>
+            <div class="card-body p-0" id="watchlist">
+                <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center: Chart -->
+    <div class="col-lg-7">
+        <!-- Stock Header -->
+        <div class="trade-header mb-3">
+            <div>
+                <h5 class="mb-0" id="tradeStockName">Sélectionner un titre</h5>
+                <small class="text-secondary" id="tradeStockCode">—</small>
+            </div>
+            <div>
+                <span class="trade-price" id="tradePrice">—</span>
+                <span class="trade-change ms-2" id="tradeChange"></span>
+            </div>
+            <div class="ms-auto">
+                <select class="form-select form-select-sm bg-dark text-light border-secondary stock-selector" id="stockSelect" onchange="loadStock(this.value)">
+                    <option value="">Choisir un titre...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="chart-container">
+            <div class="chart-toolbar">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary period-btn" onclick="setPeriod('1m')">1M</button>
+                    <button class="btn btn-outline-secondary period-btn" onclick="setPeriod('3m')">3M</button>
+                    <button class="btn btn-outline-secondary period-btn active" onclick="setPeriod('1y')">1A</button>
+                    <button class="btn btn-outline-secondary period-btn" onclick="setPeriod('2y')">2A</button>
+                    <button class="btn btn-outline-secondary period-btn" onclick="setPeriod('all')">Tout</button>
+                </div>
+                <div class="vr mx-2" style="border-color:var(--border)"></div>
+                <span class="indicator-toggle active" data-ind="sma20" onclick="toggleIndicator(this)">SMA 20</span>
+                <span class="indicator-toggle" data-ind="sma50" onclick="toggleIndicator(this)">SMA 50</span>
+                <span class="indicator-toggle" data-ind="bb" onclick="toggleIndicator(this)">Bollinger</span>
+                <span class="indicator-toggle" data-ind="volume" onclick="toggleIndicator(this)">Volume</span>
+                <div class="vr mx-2" style="border-color:var(--border)"></div>
+                <button class="btn btn-sm btn-outline-accent" onclick="toggleAutoRefresh()">
+                    <i class="bi bi-arrow-repeat me-1" id="refreshIcon"></i><span id="refreshLabel">Auto</span>
+                </button>
+            </div>
+            <div id="crosshairInfo" class="crosshair-info d-none">
+                <div class="mini-stat">
+                    <span>O: <b id="xO">—</b></span>
+                    <span>H: <b class="text-green" id="xH">—</b></span>
+                    <span>L: <b class="text-red" id="xL">—</b></span>
+                    <span>C: <b id="xC">—</b></span>
+                    <span>Vol: <b class="text-cyan" id="xV">—</b></span>
+                </div>
+            </div>
+            <div id="mainChart" style="height: 420px;"></div>
+            <div id="volumeChart" style="height: 80px;"></div>
+        </div>
+
+        <!-- RSI & MACD sub-charts -->
+        <div class="row g-3 mt-2">
+            <div class="col-6">
+                <div class="card">
+                    <div class="card-header py-1 small"><i class="bi bi-speedometer me-1"></i>RSI (14)</div>
+                    <div class="card-body p-0"><canvas id="rsiChart" height="100"></canvas></div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="card">
+                    <div class="card-header py-1 small"><i class="bi bi-activity me-1"></i>MACD</div>
+                    <div class="card-body p-0"><canvas id="macdChart" height="100"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right sidebar: Info + Quick Trade -->
+    <div class="col-lg-3">
+        <!-- Quick Stats -->
+        <div class="card mb-3">
+            <div class="card-header py-2"><i class="bi bi-info-circle me-1"></i>Statistiques</div>
+            <div class="card-body py-2" style="font-size: 0.85rem;">
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">Ouverture</span><span id="infoOpen">—</span></div>
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">Plus Haut</span><span class="text-green" id="infoHigh">—</span></div>
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">Plus Bas</span><span class="text-red" id="infoLow">—</span></div>
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">Volume</span><span class="text-cyan" id="infoVol">—</span></div>
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">Transactions</span><span id="infoTx">—</span></div>
+                <hr class="my-2 border-secondary">
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">RSI (14)</span><span id="infoRSI">—</span></div>
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">MACD</span><span id="infoMACD">—</span></div>
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">SMA 20</span><span id="infoSMA20">—</span></div>
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">SMA 50</span><span id="infoSMA50">—</span></div>
+                <hr class="my-2 border-secondary">
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">52W High</span><span class="text-green" id="info52H">—</span></div>
+                <div class="d-flex justify-content-between mb-1"><span class="text-secondary">52W Low</span><span class="text-red" id="info52L">—</span></div>
+                <div class="d-flex justify-content-between"><span class="text-secondary">Avg Vol 20j</span><span id="infoAvgVol">—</span></div>
+            </div>
+        </div>
+
+        <!-- Forecast Preview -->
+        <div class="card mb-3">
+            <div class="card-header py-2"><i class="bi bi-lightning me-1 text-orange"></i>Prévision (5j)</div>
+            <div class="card-body py-2" id="forecastPreview" style="font-size: 0.85rem;">
+                <div class="text-center text-secondary">Sélectionner un titre</div>
+            </div>
+        </div>
+
+        <!-- Quick Trade -->
+        <div class="card mb-3">
+            <div class="card-header py-2"><i class="bi bi-arrow-left-right me-1 text-accent"></i>Ordre Rapide</div>
+            <div class="card-body py-2">
+                <div class="mb-2">
+                    <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="qtPrice" placeholder="Prix" step="0.001">
+                </div>
+                <div class="mb-2">
+                    <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="qtShares" placeholder="Quantité" min="1" value="10">
+                </div>
+                <div class="mb-2 d-flex justify-content-between small text-secondary">
+                    <span>Total: <b id="qtTotal">0.00</b> TND</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm flex-fill" onclick="quickOrder('buy')"><i class="bi bi-cart-plus me-1"></i>Acheter</button>
+                    <button class="btn btn-danger btn-sm flex-fill" onclick="quickOrder('sell')"><i class="bi bi-cash-coin me-1"></i>Vendre</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signal Summary -->
+        <div class="card">
+            <div class="card-header py-2"><i class="bi bi-signpost-2 me-1 text-purple"></i>Signal</div>
+            <div class="card-body py-2 text-center" id="signalBox">
+                <div class="text-secondary">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- TradingView Lightweight Charts -->
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+// ── State ──
+let currentStock = null;
+let currentPeriod = '1y';
+let chart = null, candleSeries = null, volumeSeries = null;
+let sma20Series = null, sma50Series = null, bbUpperSeries = null, bbLowerSeries = null;
+let rsiChartInst = null, macdChartInst = null;
+let autoRefreshTimer = null;
+let ohlcData = null;
+let indicators = { sma20: true, sma50: false, bb: false, volume: false };
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadStockList();
+    initChart();
+    // Auto-compute trade total
+    document.getElementById('qtPrice').addEventListener('input', updateTotal);
+    document.getElementById('qtShares').addEventListener('input', updateTotal);
+});
+
+async function loadStockList() {
+    try {
+        const res = await fetch('/api/stocks');
+        const d = await res.json();
+        if (!d.success) return;
+        const sel = document.getElementById('stockSelect');
+        const wl = document.getElementById('watchlist');
+        let wlHtml = '';
+
+        // Sort by name
+        const stocks = d.stocks.sort((a,b) => (a.name||a.stock||'').localeCompare(b.name||b.stock||''));
+
+        stocks.forEach(s => {
+            const code = s.code || s.stock_code;
+            const name = s.name || s.stock || code;
+            sel.innerHTML += `<option value="${code}">${name} (${code})</option>`;
+            wlHtml += `<div class="watchlist-item" data-code="${code}" onclick="loadStock('${code}')">
+                <div class="fw-bold small">${name.substring(0,18)}</div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-secondary">${code}</small>
+                    <small class="wl-price-${code}">—</small>
+                </div>
+            </div>`;
+        });
+
+        // Show first 25 in watchlist
+        const topItems = stocks.slice(0, 25);
+        wl.innerHTML = '';
+        topItems.forEach(s => {
+            const code = s.code || s.stock_code;
+            const name = s.name || s.stock || code;
+            wl.innerHTML += `<div class="watchlist-item" data-code="${code}" onclick="loadStock('${code}')">
+                <div class="fw-bold small">${(name||'').substring(0,18)}</div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-secondary">${code}</small>
+                    <small class="wl-price" id="wlp-${code}">—</small>
+                </div>
+            </div>`;
+        });
+
+        // Load first stock
+        if (topItems.length > 0) {
+            loadStock(topItems[0].code || topItems[0].stock_code);
+        }
+    } catch(e) { console.error('loadStockList:', e); }
+}
+
+function initChart() {
+    const container = document.getElementById('mainChart');
+    chart = LightweightCharts.createChart(container, {
+        layout: { background: { color: '#1c2333' }, textColor: '#8b949e', fontSize: 11 },
+        grid: { vertLines: { color: 'rgba(48,54,61,0.5)' }, horzLines: { color: 'rgba(48,54,61,0.5)' } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(88,166,255,0.3)' }, horzLine: { color: 'rgba(88,166,255,0.3)' } },
+        rightPriceScale: { borderColor: '#30363d' },
+        timeScale: { borderColor: '#30363d', timeVisible: false },
+        width: container.clientWidth,
+        height: 420,
+    });
+
+    candleSeries = chart.addCandlestickSeries({
+        upColor: '#3fb950', downColor: '#f85149',
+        borderUpColor: '#3fb950', borderDownColor: '#f85149',
+        wickUpColor: '#3fb950', wickDownColor: '#f85149',
+    });
+
+    // Resize observer
+    const ro = new ResizeObserver(() => chart.applyOptions({ width: container.clientWidth }));
+    ro.observe(container);
+
+    // Crosshair move
+    chart.subscribeCrosshairMove(param => {
+        const info = document.getElementById('crosshairInfo');
+        if (!param || !param.time || !param.seriesData) { info.classList.add('d-none'); return; }
+        const data = param.seriesData.get(candleSeries);
+        if (!data) { info.classList.add('d-none'); return; }
+        info.classList.remove('d-none');
+        document.getElementById('xO').textContent = fmt(data.open, 3);
+        document.getElementById('xH').textContent = fmt(data.high, 3);
+        document.getElementById('xL').textContent = fmt(data.low, 3);
+        document.getElementById('xC').textContent = fmt(data.close, 3);
+        // Volume from volumeSeries
+        const vData = volumeSeries ? param.seriesData.get(volumeSeries) : null;
+        document.getElementById('xV').textContent = vData ? fmtK(vData.value) : '—';
+    });
+}
+
+async function loadStock(code) {
+    if (!code) return;
+    currentStock = code;
+
+    // Update selector
+    document.getElementById('stockSelect').value = code;
+
+    // Highlight watchlist
+    document.querySelectorAll('.watchlist-item').forEach(el => el.classList.remove('active'));
+    const wlItem = document.querySelector(`.watchlist-item[data-code="${code}"]`);
+    if (wlItem) wlItem.classList.add('active');
+
+    await loadOHLC(code, currentPeriod);
+    loadForecast(code);
+}
+
+async function loadOHLC(code, period) {
+    try {
+        const res = await fetch(`/api/stock/${code}/ohlc?period=${period}`);
+        const d = await res.json();
+        if (!d.success) { console.error(d.error); return; }
+
+        ohlcData = d;
+
+        // Header
+        document.getElementById('tradeStockName').textContent = d.stock_name;
+        document.getElementById('tradeStockCode').textContent = code;
+        document.getElementById('tradePrice').textContent = fmt(d.current_price, 3);
+        const chEl = document.getElementById('tradeChange');
+        const chSign = d.change >= 0 ? '+' : '';
+        chEl.textContent = `${chSign}${fmt(d.change,3)} (${chSign}${fmt(d.change_pct,2)}%)`;
+        chEl.className = 'trade-change ms-2 ' + pctClass(d.change);
+
+        // Set price in quick trade
+        document.getElementById('qtPrice').value = d.current_price;
+        updateTotal();
+
+        // Candlestick data
+        candleSeries.setData(d.ohlc);
+
+        // Remove old overlay series
+        if (sma20Series) { chart.removeSeries(sma20Series); sma20Series = null; }
+        if (sma50Series) { chart.removeSeries(sma50Series); sma50Series = null; }
+        if (bbUpperSeries) { chart.removeSeries(bbUpperSeries); bbUpperSeries = null; }
+        if (bbLowerSeries) { chart.removeSeries(bbLowerSeries); bbLowerSeries = null; }
+        if (volumeSeries) { chart.removeSeries(volumeSeries); volumeSeries = null; }
+
+        // SMA 20
+        if (indicators.sma20 && d.indicators.sma20.length > 0) {
+            sma20Series = chart.addLineSeries({ color: '#58a6ff', lineWidth: 1, title: 'SMA 20' });
+            sma20Series.setData(d.indicators.sma20);
+        }
+        // SMA 50
+        if (indicators.sma50 && d.indicators.sma50.length > 0) {
+            sma50Series = chart.addLineSeries({ color: '#d29922', lineWidth: 1, title: 'SMA 50' });
+            sma50Series.setData(d.indicators.sma50);
+        }
+        // Bollinger Bands
+        if (indicators.bb && d.indicators.bb_upper.length > 0) {
+            bbUpperSeries = chart.addLineSeries({ color: 'rgba(188,140,255,0.5)', lineWidth: 1, lineStyle: 2, title: 'BB Upper' });
+            bbUpperSeries.setData(d.indicators.bb_upper);
+            bbLowerSeries = chart.addLineSeries({ color: 'rgba(188,140,255,0.5)', lineWidth: 1, lineStyle: 2, title: 'BB Lower' });
+            bbLowerSeries.setData(d.indicators.bb_lower);
+        }
+        // Volume
+        if (indicators.volume && d.volume.length > 0) {
+            volumeSeries = chart.addHistogramSeries({
+                priceFormat: { type: 'volume' },
+                priceScaleId: 'vol',
+            });
+            chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+            volumeSeries.setData(d.volume);
+        }
+
+        chart.timeScale().fitContent();
+
+        // Info panel
+        const ohlc = d.ohlc;
+        if (ohlc.length > 0) {
+            const last = ohlc[ohlc.length - 1];
+            document.getElementById('infoOpen').textContent = fmt(last.open, 3);
+            document.getElementById('infoHigh').textContent = fmt(last.high, 3);
+            document.getElementById('infoLow').textContent = fmt(last.low, 3);
+            document.getElementById('infoVol').textContent = fmtK(last.volume);
+            document.getElementById('infoTx').textContent = '—';
+
+            // 52-week stats
+            const yearData = ohlc.slice(-252);
+            const highs = yearData.map(d => d.high);
+            const lows = yearData.map(d => d.low);
+            document.getElementById('info52H').textContent = fmt(Math.max(...highs), 3);
+            document.getElementById('info52L').textContent = fmt(Math.min(...lows), 3);
+
+            const vols = ohlc.slice(-20).map(d => d.volume);
+            document.getElementById('infoAvgVol').textContent = fmtK(Math.round(vols.reduce((a,b)=>a+b,0)/vols.length));
+
+            // RSI & MACD from last indicator values
+            const rsiArr = d.indicators.rsi;
+            const macdArr = d.indicators.macd;
+            if (rsiArr.length > 0) document.getElementById('infoRSI').textContent = fmt(rsiArr[rsiArr.length-1].value, 1);
+            if (macdArr.length > 0) document.getElementById('infoMACD').textContent = fmt(macdArr[macdArr.length-1].macd, 3);
+            if (d.indicators.sma20.length > 0) document.getElementById('infoSMA20').textContent = fmt(d.indicators.sma20[d.indicators.sma20.length-1].value, 3);
+            if (d.indicators.sma50.length > 0) document.getElementById('infoSMA50').textContent = fmt(d.indicators.sma50[d.indicators.sma50.length-1].value, 3);
+        }
+
+        // RSI sub-chart
+        renderRSI(d.indicators.rsi);
+        renderMACD(d.indicators.macd);
+
+        // Signal
+        updateSignal(d);
+
+        // Update watchlist price
+        const wlp = document.getElementById(`wlp-${code}`);
+        if (wlp) {
+            wlp.textContent = fmt(d.current_price, 3);
+            wlp.className = 'wl-price ' + pctClass(d.change);
+        }
+
+    } catch(e) { console.error('loadOHLC:', e); }
+}
+
+function renderRSI(rsiData) {
+    if (rsiChartInst) rsiChartInst.destroy();
+    const last60 = rsiData.slice(-60);
+    rsiChartInst = new Chart('rsiChart', {
+        type: 'line',
+        data: {
+            labels: last60.map(r => r.time.slice(5)),
+            datasets: [{
+                data: last60.map(r => r.value),
+                borderColor: '#bc8cff',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: false,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: {
+                    min: 0, max: 100,
+                    ticks: { color: '#8b949e', font: { size: 9 }, stepSize: 30 },
+                    grid: { color: 'rgba(48,54,61,0.4)' }
+                }
+            },
+            elements: { line: { borderWidth: 1.5 } }
+        },
+        plugins: [{
+            beforeDraw: function(chart) {
+                const ctx = chart.ctx;
+                const yAxis = chart.scales.y;
+                const xAxis = chart.scales.x;
+                // Overbought zone (70-100)
+                ctx.fillStyle = 'rgba(248,81,73,0.08)';
+                ctx.fillRect(xAxis.left, yAxis.getPixelForValue(100), xAxis.width, yAxis.getPixelForValue(70) - yAxis.getPixelForValue(100));
+                // Oversold zone (0-30)
+                ctx.fillStyle = 'rgba(63,185,80,0.08)';
+                ctx.fillRect(xAxis.left, yAxis.getPixelForValue(30), xAxis.width, yAxis.getPixelForValue(0) - yAxis.getPixelForValue(30));
+            }
+        }]
+    });
+}
+
+function renderMACD(macdData) {
+    if (macdChartInst) macdChartInst.destroy();
+    const last60 = macdData.slice(-60);
+    macdChartInst = new Chart('macdChart', {
+        type: 'bar',
+        data: {
+            labels: last60.map(r => r.time.slice(5)),
+            datasets: [
+                {
+                    label: 'Hist',
+                    data: last60.map(r => r.hist),
+                    backgroundColor: last60.map(r => r.hist >= 0 ? 'rgba(63,185,80,0.6)' : 'rgba(248,81,73,0.6)'),
+                    borderWidth: 0,
+                    order: 2
+                },
+                {
+                    label: 'MACD',
+                    type: 'line',
+                    data: last60.map(r => r.macd),
+                    borderColor: '#58a6ff',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.3,
+                    order: 1
+                },
+                {
+                    label: 'Signal',
+                    type: 'line',
+                    data: last60.map(r => r.signal),
+                    borderColor: '#d29922',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.3,
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: {
+                    ticks: { color: '#8b949e', font: { size: 9 } },
+                    grid: { color: 'rgba(48,54,61,0.4)' }
+                }
+            }
+        }
+    });
+}
+
+function updateSignal(d) {
+    const box = document.getElementById('signalBox');
+    const rsi = d.indicators.rsi;
+    const macd = d.indicators.macd;
+    if (!rsi.length || !macd.length) { box.innerHTML = '<div class="text-secondary">Données insuffisantes</div>'; return; }
+
+    const lastRSI = rsi[rsi.length - 1].value;
+    const lastMACD = macd[macd.length - 1];
+    let signals = [];
+
+    // RSI signal
+    if (lastRSI > 70) signals.push({ text: 'RSI Suracheté', cls: 'badge-red' });
+    else if (lastRSI < 30) signals.push({ text: 'RSI Survendu', cls: 'badge-green' });
+    else signals.push({ text: 'RSI Neutre', cls: 'badge-accent' });
+
+    // MACD signal
+    if (lastMACD.hist > 0 && lastMACD.macd > lastMACD.signal)
+        signals.push({ text: 'MACD Haussier', cls: 'badge-green' });
+    else if (lastMACD.hist < 0 && lastMACD.macd < lastMACD.signal)
+        signals.push({ text: 'MACD Baissier', cls: 'badge-red' });
+    else
+        signals.push({ text: 'MACD Neutre', cls: 'badge-accent' });
+
+    // Price vs SMA
+    const price = d.current_price;
+    const sma20 = d.indicators.sma20.length > 0 ? d.indicators.sma20[d.indicators.sma20.length-1].value : null;
+    const sma50 = d.indicators.sma50.length > 0 ? d.indicators.sma50[d.indicators.sma50.length-1].value : null;
+    if (sma20 && sma50) {
+        if (price > sma20 && sma20 > sma50) signals.push({ text: 'Tendance Haussière', cls: 'badge-green' });
+        else if (price < sma20 && sma20 < sma50) signals.push({ text: 'Tendance Baissière', cls: 'badge-red' });
+        else signals.push({ text: 'Tendance Mixte', cls: 'badge-orange' });
+    }
+
+    // Overall
+    const bullish = signals.filter(s => s.cls === 'badge-green').length;
+    const bearish = signals.filter(s => s.cls === 'badge-red').length;
+    let overall = { text: 'NEUTRE', cls: 'text-accent', icon: 'bi-dash-circle' };
+    if (bullish > bearish) overall = { text: 'ACHETER', cls: 'text-green', icon: 'bi-arrow-up-circle-fill' };
+    else if (bearish > bullish) overall = { text: 'VENDRE', cls: 'text-red', icon: 'bi-arrow-down-circle-fill' };
+
+    box.innerHTML = `
+        <div class="mb-2"><i class="bi ${overall.icon} fs-2 ${overall.cls}"></i></div>
+        <div class="fs-5 fw-bold ${overall.cls} mb-2">${overall.text}</div>
+        <div class="d-flex flex-wrap gap-1 justify-content-center">
+            ${signals.map(s => `<span class="badge ${s.cls}">${s.text}</span>`).join('')}
+        </div>`;
+}
+
+async function loadForecast(code) {
+    const box = document.getElementById('forecastPreview');
+    box.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div></div>';
+    try {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(`/api/forecast/${code}?horizon=5&fast=1`, { signal: controller.signal });
+        clearTimeout(t);
+        const d = await res.json();
+        if (!d.success || !d.ensemble) {
+            box.innerHTML = '<div class="text-secondary small">Prévision indisponible</div>';
+            return;
+        }
+        const fc = d.ensemble.forecast;
+        const dates = d.forecast_dates || [];
+        const lastPrice = d.last_close;
+        let html = '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Date</th><th>Prix</th><th>Var</th></tr></thead><tbody>';
+        fc.forEach((p, i) => {
+            const change = ((p - lastPrice) / lastPrice * 100);
+            html += `<tr>
+                <td class="small">${dates[i] ? dates[i].slice(5) : 'J+'+(i+1)}</td>
+                <td class="fw-bold">${fmt(p,3)}</td>
+                <td class="${pctClass(change)}">${change>0?'+':''}${fmt(change,1)}%</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        html += `<div class="mt-2 small text-secondary text-center">${d.ensemble.num_models} modèles (EMA + Régression)</div>`;
+        box.innerHTML = html;
+    } catch(e) {
+        box.innerHTML = '<div class="text-red small">Erreur chargement</div>';
+    }
+}
+
+// ── Controls ──
+function setPeriod(p) {
+    currentPeriod = p;
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    if (currentStock) loadOHLC(currentStock, p);
+}
+
+function toggleIndicator(el) {
+    const ind = el.dataset.ind;
+    indicators[ind] = !indicators[ind];
+    el.classList.toggle('active');
+    if (currentStock) loadOHLC(currentStock, currentPeriod);
+}
+
+let autoRefreshing = false;
+function toggleAutoRefresh() {
+    autoRefreshing = !autoRefreshing;
+    const icon = document.getElementById('refreshIcon');
+    const label = document.getElementById('refreshLabel');
+    if (autoRefreshing) {
+        icon.classList.add('text-green');
+        label.textContent = 'Live';
+        autoRefreshTimer = setInterval(() => {
+            if (currentStock) loadOHLC(currentStock, currentPeriod);
+        }, 10000);
+    } else {
+        icon.classList.remove('text-green');
+        label.textContent = 'Auto';
+        if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    }
+}
+
+function updateTotal() {
+    const price = parseFloat(document.getElementById('qtPrice').value) || 0;
+    const shares = parseInt(document.getElementById('qtShares').value) || 0;
+    document.getElementById('qtTotal').textContent = fmt(price * shares, 2);
+}
+
+function quickOrder(action) {
+    if (!currentStock) { alert('Sélectionnez un titre'); return; }
+    const price = parseFloat(document.getElementById('qtPrice').value);
+    const shares = parseInt(document.getElementById('qtShares').value);
+    if (!price || !shares) { alert('Remplissez prix et quantité'); return; }
+
+    const stockName = document.getElementById('tradeStockName').textContent || currentStock;
+    const confirmMsg = `${action === 'buy' ? 'ACHETER' : 'VENDRE'} ${shares} x ${stockName} @ ${fmt(price,3)} TND\nTotal: ${fmt(price*shares,2)} TND`;
+    if (!window.confirm(confirmMsg)) return;
+
+    fetch('/api/trade/quick', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            action: action,
+            stock_code: currentStock,
+            stock_name: stockName,
+            price: price,
+            shares: shares
+        })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            const pf = d.portfolio || {};
+            const msg = `${action === 'buy' ? 'Achat' : 'Vente'} exécuté !\n` +
+                `${d.shares} x ${d.name || d.stock} @ ${fmt(d.price,3)} TND\n` +
+                (d.profit !== undefined ? `P&L: ${fmt(d.profit,2)} TND\n` : '') +
+                `Cash restant: ${fmt(pf.cash || 0, 2)} TND | Portefeuille: ${fmt(pf.total_value || 0, 2)} TND`;
+            alert(msg);
+        } else {
+            alert('Erreur: ' + (d.error || 'Ordre refusé'));
+        }
+    })
+    .catch(e => alert('Erreur réseau: ' + e.message));
+}
+</script>
+{% endblock %}

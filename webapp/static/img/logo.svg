@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#58a6ff"/>
+      <stop offset="100%" style="stop-color:#39d4e0"/>
+    </linearGradient>
+  </defs>
+  <!-- Robot head -->
+  <rect x="8" y="10" width="24" height="20" rx="5" fill="url(#grad)"/>
+  <!-- Eyes -->
+  <circle cx="15" cy="19" r="3" fill="#0d1117"/>
+  <circle cx="25" cy="19" r="3" fill="#0d1117"/>
+  <circle cx="15.5" cy="18.5" r="1" fill="#fff"/>
+  <circle cx="25.5" cy="18.5" r="1" fill="#fff"/>
+  <!-- Antenna -->
+  <line x1="20" y1="10" x2="20" y2="4" stroke="url(#grad)" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="20" cy="3" r="2" fill="#39d4e0"/>
+  <!-- Mouth / Chart arrow -->
+  <polyline points="12,26 17,24 22,27 28,21" fill="none" stroke="#3fb950" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="28,21 28,25 24,21" fill="#3fb950"/>
+  <!-- Tunisia flag colors accent -->
+  <rect x="8" y="30" width="24" height="2" rx="1" fill="#e70013" opacity="0.8"/>
+</svg>

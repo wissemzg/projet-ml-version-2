@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Tradeili — Trading Assistant{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/logo.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+            --border: #30363d; --text-primary: #e6edf3; --text-secondary: #8b949e;
+            --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+            --orange: #d29922; --purple: #bc8cff; --cyan: #39d4e0;
+        }
+        body { background: var(--bg-primary); color: var(--text-primary); font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar { background: var(--bg-secondary) !important; border-bottom: 1px solid var(--border); }
+        .navbar-brand { font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.3rem; }
+        .nav-link { color: var(--text-secondary) !important; font-weight: 500; transition: color 0.2s; }
+        .nav-link:hover, .nav-link.active { color: var(--accent) !important; }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; }
+        .card-header { background: transparent; border-bottom: 1px solid var(--border); font-weight: 600; }
+        .stat-card { background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary)); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem; transition: transform 0.2s, box-shadow 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+        .stat-value { font-size: 1.8rem; font-weight: 700; }
+        .stat-label { color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .text-green { color: var(--green) !important; }
+        .text-red { color: var(--red) !important; }
+        .text-accent { color: var(--accent) !important; }
+        .text-orange { color: var(--orange) !important; }
+        .text-purple { color: var(--purple) !important; }
+        .text-cyan { color: var(--cyan) !important; }
+        .badge-green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+        .badge-red { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }
+        .badge-accent { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+        .badge-orange { background: rgba(210,153,34,0.15); color: var(--orange); border: 1px solid rgba(210,153,34,0.3); }
+        .badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+        .glow-green { box-shadow: 0 0 20px rgba(63,185,80,0.2); }
+        .glow-red { box-shadow: 0 0 20px rgba(248,81,73,0.2); }
+        .glow-accent { box-shadow: 0 0 20px rgba(88,166,255,0.15); }
+        .table { color: var(--text-primary); }
+        .table th { color: var(--text-secondary); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; border-color: var(--border); }
+        .table td { border-color: var(--border); vertical-align: middle; }
+        .table-hover tbody tr:hover { background: rgba(88,166,255,0.05); }
+        .btn-accent { background: var(--accent); color: #fff; border: none; }
+        .btn-accent:hover { background: #4090e0; color: #fff; }
+        .btn-outline-accent { border: 1px solid var(--accent); color: var(--accent); }
+        .btn-outline-accent:hover { background: var(--accent); color: #fff; }
+        .spinner-border { color: var(--accent); }
+        .progress { background: var(--bg-secondary); height: 6px; border-radius: 3px; }
+        .loading-overlay { position: fixed; inset: 0; background: rgba(13,17,23,0.85); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .footer { background: var(--bg-secondary); border-top: 1px solid var(--border); padding: 1rem 0; margin-top: 3rem; }
+        .page-header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+        @media (max-width: 768px) { .stat-value { font-size: 1.3rem; } .stat-card { padding: 1rem; } }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="/"><img src="/static/img/logo.svg" alt="Tradeili" height="32" class="me-2">Tradeili</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/"><i class="bi bi-grid-3x3-gap me-1"></i>Marché</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/trade"><i class="bi bi-candlestick-chart me-1"></i>Trading</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/portfolio"><i class="bi bi-wallet2 me-1"></i>Portefeuille</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/surveillance"><i class="bi bi-shield-exclamation me-1"></i>Surveillance</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/agents"><i class="bi bi-robot me-1"></i>Agents</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/chat"><i class="bi bi-chat-dots me-1"></i>Assistant</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/login"><i class="bi bi-person-circle me-1"></i>Compte</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4 py-3">
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="footer text-center">
+        <small class="text-secondary">
+            <i class="bi bi-heart-fill me-1" style="color:#f85149"></i>made with love by the overfitters
+        </small>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Highlight active nav link
+        const path = window.location.pathname;
+        document.querySelectorAll('.nav-link').forEach(link => {
+            if (link.getAttribute('href') === path || (path.startsWith('/stock') && link.getAttribute('href') === '/')) {
+                link.classList.add('active');
+            }
+        });
+        // Utility functions
+        function fmt(n, d=2) { return n != null ? Number(n).toFixed(d) : '—'; }
+        function fmtK(n) { return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : n; }
+        function pctClass(v) { return v > 0 ? 'text-green' : v < 0 ? 'text-red' : 'text-secondary'; }
+        function pctBadge(v) { return v > 0 ? 'badge-green' : v < 0 ? 'badge-red' : 'badge-accent'; }
+        function pctIcon(v) { return v > 0 ? 'bi-arrow-up' : v < 0 ? 'bi-arrow-down' : 'bi-dash'; }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Marché — Tradeili{% endblock %}
+{% block content %}
+<div id="loading" class="text-center py-5"><div class="spinner-border" style="width:3rem;height:3rem"></div><p class="mt-3 text-secondary">Chargement des données du marché...</p></div>
+<div id="content" class="d-none fade-in">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center page-header">
+        <div>
+            <h4 class="mb-1"><i class="bi bi-grid-3x3-gap me-2 text-accent"></i>Vue d'ensemble du Marché</h4>
+            <small class="text-secondary" id="marketDate"></small>
+        </div>
+        <div id="sentimentBadge"></div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3 col-xl-2"><div class="stat-card glow-accent" id="tunindexCard">
+            <div class="stat-label">TUNINDEX</div>
+            <div class="stat-value text-accent" id="tunindexVal">—</div>
+            <div id="tunindexChange" class="small"></div>
+        </div></div>
+        <div class="col-6 col-md-3 col-xl-2"><div class="stat-card">
+            <div class="stat-label">Volume Total</div>
+            <div class="stat-value" id="totalVolume">—</div>
+        </div></div>
+        <div class="col-6 col-md-3 col-xl-2"><div class="stat-card">
+            <div class="stat-label">Capitaux (TND)</div>
+            <div class="stat-value" id="totalCapital">—</div>
+        </div></div>
+        <div class="col-6 col-md-3 col-xl-2"><div class="stat-card">
+            <div class="stat-label">Titres Cotés</div>
+            <div class="stat-value text-cyan" id="numStocks">—</div>
+        </div></div>
+        <div class="col-6 col-md-3 col-xl-2"><div class="stat-card">
+            <div class="stat-label"><i class="bi bi-arrow-up text-green"></i> Hausse</div>
+            <div class="stat-value text-green" id="advancing">—</div>
+        </div></div>
+        <div class="col-6 col-md-3 col-xl-2"><div class="stat-card">
+            <div class="stat-label"><i class="bi bi-arrow-down text-red"></i> Baisse</div>
+            <div class="stat-value text-red" id="declining">—</div>
+        </div></div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between">
+                    <span><i class="bi bi-graph-up me-2"></i>TUNINDEX — 90 Jours</span>
+                    <span class="badge badge-accent" id="tunindexPeriod">90j</span>
+                </div>
+                <div class="card-body"><canvas id="tunindexChart" height="280"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Volume du Marché</div>
+                <div class="card-body"><canvas id="volumeChart" height="280"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Breadth Chart -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-pie-chart me-2"></i>Breadth du Marché</div>
+                <div class="card-body d-flex align-items-center justify-content-center"><canvas id="breadthChart" height="220"></canvas></div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between">
+                    <span><i class="bi bi-search me-2"></i>Recherche de Titres</span>
+                    <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" style="width:220px" placeholder="Filtrer..." id="stockFilter">
+                </div>
+                <div class="card-body" style="max-height:320px;overflow-y:auto">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead><tr><th>Code</th><th>Titre</th><th>Dernier</th><th>Volume</th><th>Jours</th><th></th></tr></thead>
+                        <tbody id="stockTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gainers/Losers -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card glow-green">
+                <div class="card-header text-green"><i class="bi bi-arrow-up-circle me-2"></i>Plus Fortes Hausses</div>
+                <div class="card-body p-0">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead><tr><th>Titre</th><th>Prix</th><th>Variation</th><th>Volume</th></tr></thead>
+                        <tbody id="gainersTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card glow-red">
+                <div class="card-header text-red"><i class="bi bi-arrow-down-circle me-2"></i>Plus Fortes Baisses</div>
+                <div class="card-body p-0">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead><tr><th>Titre</th><th>Prix</th><th>Variation</th><th>Volume</th></tr></thead>
+                        <tbody id="losersTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ Real-Time Scraper Data ══════════ -->
+    <div class="d-flex justify-content-between align-items-center page-header">
+        <div>
+            <h5 class="mb-1"><i class="bi bi-broadcast me-2 text-cyan"></i>Données en Temps Réel — Scraper</h5>
+            <small class="text-secondary">Cours scrapés depuis ilboursa.com & bvmt.com.tn</small>
+        </div>
+        <button class="btn btn-sm btn-outline-accent" onclick="loadRealtimeData()"><i class="bi bi-arrow-clockwise me-1"></i>Actualiser</button>
+    </div>
+
+    <div id="realtimeStatus" class="row g-3 mb-3">
+        <div class="col-6 col-md-3"><div class="stat-card">
+            <div class="stat-label">Statut</div>
+            <div class="stat-value fs-5" id="rtStatus">—</div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="stat-card">
+            <div class="stat-label">Titres Suivis</div>
+            <div class="stat-value fs-5 text-cyan" id="rtCount">—</div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="stat-card">
+            <div class="stat-label">Dernier Scrape</div>
+            <div class="stat-value fs-6 text-secondary" id="rtLastScrape">—</div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="stat-card">
+            <div class="stat-label">Fichiers Sauvegardés</div>
+            <div class="stat-value fs-5 text-accent" id="rtFiles">—</div>
+        </div></div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-table me-2"></i>Cours Scrapés en Direct</div>
+        <div class="card-body p-0" style="max-height:400px;overflow-y:auto">
+            <table class="table table-hover table-sm mb-0">
+                <thead><tr><th>Ticker</th><th>Nom</th><th>Prix</th><th>Ouv.</th><th>Haut</th><th>Bas</th><th>Volume</th><th>Var %</th><th>Heure</th></tr></thead>
+                <tbody id="realtimeTable"><tr><td colspan="9" class="text-center text-secondary">Cliquez sur Actualiser pour charger</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allStocks = [];
+async function loadMarket() {
+    try {
+        const [overview, stocks] = await Promise.all([
+            fetch('/api/market/overview').then(r=>r.json()),
+            fetch('/api/stocks').then(r=>r.json())
+        ]);
+        if (!overview.success) throw new Error(overview.error);
+        const d = overview;
+
+        document.getElementById('marketDate').textContent = `Séance du ${d.date}`;
+        document.getElementById('tunindexVal').textContent = fmt(d.tunindex.value, 2);
+        const chg = d.tunindex.change_pct;
+        document.getElementById('tunindexChange').innerHTML = `<span class="${pctClass(chg)}"><i class="bi ${pctIcon(chg)}"></i> ${chg>0?'+':''}${fmt(chg)}%</span>`;
+        document.getElementById('totalVolume').textContent = fmtK(d.market_stats.total_volume);
+        document.getElementById('totalCapital').textContent = fmtK(d.market_stats.total_capital);
+        document.getElementById('numStocks').textContent = d.market_stats.num_stocks;
+        document.getElementById('advancing').textContent = d.market_stats.advancing;
+        document.getElementById('declining').textContent = d.market_stats.declining;
+
+        const gs = d.global_sentiment;
+        document.getElementById('sentimentBadge').innerHTML = `<span class="badge ${gs.score > 0.15 ? 'badge-green' : gs.score < -0.15 ? 'badge-red' : 'badge-accent'} px-3 py-2"><i class="bi bi-emoji-${gs.score>0.15?'smile':'neutral'}"></i> Sentiment: ${gs.label} (${fmt(gs.score,3)})</span>`;
+
+        // TUNINDEX Chart
+        const hist = d.tunindex.history;
+        new Chart('tunindexChart', {
+            type: 'line',
+            data: {
+                labels: hist.map(h=>h.date),
+                datasets: [{
+                    label: 'TUNINDEX', data: hist.map(h=>h.tunindex),
+                    borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.08)',
+                    fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
+                }]
+            },
+            options: { responsive:true, plugins:{legend:{display:false}}, scales:{x:{display:true, ticks:{maxTicksLimit:10, color:'#8b949e'}}, y:{ticks:{color:'#8b949e'}, grid:{color:'rgba(48,54,61,0.5)'}}} }
+        });
+
+        // Volume Chart
+        if (d.volume_history) {
+            new Chart('volumeChart', {
+                type: 'bar',
+                data: {
+                    labels: d.volume_history.map(v=>v.date),
+                    datasets: [{
+                        label: 'Volume', data: d.volume_history.map(v=>v.volume),
+                        backgroundColor: 'rgba(57,212,224,0.4)', borderColor: '#39d4e0', borderWidth: 1
+                    }]
+                },
+                options: { responsive:true, plugins:{legend:{display:false}}, scales:{x:{display:true, ticks:{maxTicksLimit:8, color:'#8b949e'}}, y:{ticks:{color:'#8b949e', callback:v=>fmtK(v)}, grid:{color:'rgba(48,54,61,0.5)'}}} }
+            });
+        }
+
+        // Breadth Pie
+        new Chart('breadthChart', {
+            type: 'doughnut',
+            data: {
+                labels: ['Hausse', 'Baisse', 'Inchangé'],
+                datasets: [{ data: [d.market_stats.advancing, d.market_stats.declining, d.market_stats.unchanged],
+                    backgroundColor: ['#3fb950','#f85149','#30363d'], borderWidth: 0 }]
+            },
+            options: { responsive:true, plugins:{legend:{position:'bottom', labels:{color:'#8b949e', padding:15}}} }
+        });
+
+        // Tables
+        function fillTable(id, items, isGainer) {
+            const tb = document.getElementById(id);
+            tb.innerHTML = items.map(i => `<tr style="cursor:pointer" onclick="location.href='/stock/${i.code}'">
+                <td><strong>${i.stock||i.code}</strong><br><small class="text-secondary">${i.code}</small></td>
+                <td>${fmt(i.close, 3)}</td>
+                <td><span class="badge ${pctBadge(i.change_pct)}"><i class="bi ${pctIcon(i.change_pct)}"></i> ${i.change_pct>0?'+':''}${fmt(i.change_pct)}%</span></td>
+                <td class="text-secondary">${fmtK(i.volume)}</td>
+            </tr>`).join('');
+        }
+        fillTable('gainersTable', d.top_gainers, true);
+        fillTable('losersTable', d.top_losers, false);
+
+        // Stock list
+        if (stocks.success) {
+            allStocks = stocks.stocks;
+            renderStocks(allStocks);
+        }
+
+        document.getElementById('loading').classList.add('d-none');
+        document.getElementById('content').classList.remove('d-none');
+    } catch(e) {
+        document.getElementById('loading').innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>${e.message}</div>`;
+    }
+}
+
+function renderStocks(list) {
+    document.getElementById('stockTable').innerHTML = list.slice(0,50).map(s => `<tr style="cursor:pointer" onclick="location.href='/stock/${s.code}'">
+        <td><code>${s.code}</code></td><td>${s.stock}</td>
+        <td>${fmt(s.last_close,3)}</td><td>${fmtK(s.avg_volume)}</td><td>${s.num_days}</td>
+        <td><a href="/stock/${s.code}" class="btn btn-sm btn-outline-accent py-0 px-2">Voir</a></td>
+    </tr>`).join('');
+}
+
+document.getElementById('stockFilter').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    renderStocks(allStocks.filter(s => s.stock.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)));
+});
+
+loadMarket();
+
+// ══════════ Real-Time Scraper Dashboard ══════════
+async function loadRealtimeData() {
+    try {
+        const res = await fetch('/api/realtime/dashboard');
+        const d = await res.json();
+        if (!d.success) return;
+
+        // Status badges
+        const st = d.status || {};
+        document.getElementById('rtStatus').innerHTML = st.running
+            ? '<span class="badge badge-green">Actif</span>'
+            : '<span class="badge badge-red">Arrêté</span>';
+        document.getElementById('rtCount').textContent = d.count || st.stocks_tracked || 0;
+        document.getElementById('rtLastScrape').textContent = st.last_scrape
+            ? new Date(st.last_scrape).toLocaleTimeString('fr-TN')
+            : '—';
+        document.getElementById('rtFiles').textContent = (d.files || []).length;
+
+        // Table
+        const stocks = d.stocks || [];
+        const tb = document.getElementById('realtimeTable');
+        if (stocks.length === 0) {
+            tb.innerHTML = '<tr><td colspan="9" class="text-center text-secondary">Aucune donnée scrapée disponible</td></tr>';
+            return;
+        }
+        tb.innerHTML = stocks.map(s => {
+            const varCls = s.var_pct > 0 ? 'text-green' : s.var_pct < 0 ? 'text-red' : 'text-secondary';
+            const timeStr = s.time ? new Date(s.time).toLocaleTimeString('fr-TN') : '—';
+            return `<tr>
+                <td><code>${s.ticker}</code></td>
+                <td>${s.name || '—'}</td>
+                <td class="fw-bold">${fmt(s.price, 3)}</td>
+                <td>${fmt(s.open, 3)}</td>
+                <td>${fmt(s.high, 3)}</td>
+                <td>${fmt(s.low, 3)}</td>
+                <td>${fmtK(s.volume)}</td>
+                <td class="${varCls} fw-bold">${s.var_pct > 0 ? '+' : ''}${fmt(s.var_pct, 2)}%</td>
+                <td class="text-secondary small">${timeStr}</td>
+            </tr>`;
+        }).join('');
+    } catch(e) {
+        console.error('Realtime load error:', e);
+    }
+}
+
+// Auto-load real-time data on page load
+loadRealtimeData();
+</script>
+{% endblock %}

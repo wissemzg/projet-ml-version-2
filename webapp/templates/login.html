@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Connexion — Tradeili{% endblock %}
+{% block extra_css %}
+<style>
+    .auth-container { max-width: 450px; margin: 2rem auto; }
+    .auth-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; }
+    .auth-tabs .nav-link { color: var(--text-secondary); border: none; border-bottom: 2px solid transparent; }
+    .auth-tabs .nav-link.active { color: var(--accent); border-bottom-color: var(--accent); background: transparent; }
+    .form-control, .form-select { background: var(--bg-secondary) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
+    .form-control:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 0.2rem rgba(88,166,255,0.15); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="text-center mb-4">
+        <img src="/static/img/logo.svg" alt="Tradeili" height="64">
+        <h3 class="mt-2" style="background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Tradeili</h3>
+        <p class="text-secondary">Connectez-vous pour accéder à votre assistant de trading personnalisé</p>
+    </div>
+
+    <div class="auth-card">
+        <ul class="nav nav-tabs auth-tabs mb-4 justify-content-center" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#loginTab">Connexion</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#registerTab">Inscription</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Login -->
+            <div class="tab-pane fade show active" id="loginTab">
+                <div id="loginError" class="alert alert-danger py-2 d-none"></div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Nom d'utilisateur</label>
+                    <input type="text" class="form-control" id="loginUser" placeholder="votre_nom" autocomplete="username">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Mot de passe</label>
+                    <input type="password" class="form-control" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <button class="btn btn-accent w-100" onclick="doLogin()"><i class="bi bi-box-arrow-in-right me-1"></i>Se connecter</button>
+            </div>
+
+            <!-- Register -->
+            <div class="tab-pane fade" id="registerTab">
+                <div id="registerError" class="alert alert-danger py-2 d-none"></div>
+                <div id="registerSuccess" class="alert alert-success py-2 d-none"></div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Nom d'utilisateur</label>
+                    <input type="text" class="form-control" id="regUser" placeholder="choisir un nom">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Nom complet</label>
+                    <input type="text" class="form-control" id="regName" placeholder="votre nom">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Mot de passe</label>
+                    <input type="password" class="form-control" id="regPass" placeholder="min. 4 caractères">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Confirmer le mot de passe</label>
+                    <input type="password" class="form-control" id="regPass2" placeholder="••••••••">
+                </div>
+                <button class="btn btn-accent w-100" onclick="doRegister()"><i class="bi bi-person-plus me-1"></i>Créer un compte</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('loginPass').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('regPass2').addEventListener('keypress', e => { if (e.key === 'Enter') doRegister(); });
+
+async function doLogin() {
+    const username = document.getElementById('loginUser').value.trim();
+    const password = document.getElementById('loginPass').value;
+    if (!username || !password) { showErr('loginError', 'Remplissez tous les champs.'); return; }
+
+    const res = await fetch('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({username, password})});
+    const d = await res.json();
+    if (d.success) {
+        if (!d.profile_completed) {
+            window.location.href = '/chat?onboarding=1';
+        } else {
+            window.location.href = '/';
+        }
+    } else {
+        showErr('loginError', d.error);
+    }
+}
+
+async function doRegister() {
+    const username = document.getElementById('regUser').value.trim();
+    const display_name = document.getElementById('regName').value.trim();
+    const password = document.getElementById('regPass').value;
+    const password2 = document.getElementById('regPass2').value;
+
+    if (!username || !password) { showErr('registerError', 'Remplissez tous les champs.'); return; }
+    if (password.length < 4) { showErr('registerError', 'Mot de passe trop court (min. 4).'); return; }
+    if (password !== password2) { showErr('registerError', 'Les mots de passe ne correspondent pas.'); return; }
+
+    const res = await fetch('/api/auth/register', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({username, password, display_name})});
+    const d = await res.json();
+    if (d.success) {
+        // Auto-login
+        const lr = await fetch('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({username, password})});
+        const ld = await lr.json();
+        if (ld.success) {
+            window.location.href = '/chat?onboarding=1';
+        }
+    } else {
+        showErr('registerError', d.error);
+    }
+}
+
+function showErr(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.classList.remove('d-none');
+    setTimeout(() => el.classList.add('d-none'), 5000);
+}
+</script>
+{% endblock %}

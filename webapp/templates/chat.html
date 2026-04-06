@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Assistant IA — Tradeili{% endblock %}
+{% block extra_css %}
+<style>
+    .chat-container { max-width: 900px; margin: 0 auto; }
+    .chat-messages { height: 55vh; overflow-y: auto; padding: 1rem; }
+    .msg { max-width: 80%; margin-bottom: 1rem; padding: 0.8rem 1.2rem; border-radius: 16px; line-height: 1.5; }
+    .msg-user { background: var(--accent); color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
+    .msg-bot { background: var(--bg-card); border: 1px solid var(--border); margin-right: auto; border-bottom-left-radius: 4px; }
+    .msg-bot .msg-label { color: var(--accent); font-weight: 600; font-size: 0.8rem; margin-bottom: 0.3rem; }
+    .msg-user .msg-label { text-align: right; font-size: 0.8rem; margin-bottom: 0.3rem; opacity: 0.8; }
+    .typing { opacity: 0.6; }
+    .typing span { animation: blink 1.4s infinite; }
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%,100% { opacity: 0.2; } 50% { opacity: 1; } }
+    .suggestion-btn { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); border-radius: 20px; padding: 0.4rem 1rem; font-size: 0.85rem; transition: all 0.2s; }
+    .suggestion-btn:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <div class="page-header text-center">
+        <h4 class="mb-1"><i class="bi bi-robot me-2 text-accent"></i>Assistant Intelligent Tradeili</h4>
+        <small class="text-secondary">Posez vos questions sur le marché tunisien — Propulsé par GPT-4o + CrewAI</small>
+    </div>
+
+    <div class="card mb-3">
+        <div class="chat-messages" id="chatMessages">
+            <div class="msg msg-bot">
+                <div class="msg-label"><i class="bi bi-robot me-1"></i>Assistant Tradeili</div>
+                Bienvenue ! Je suis votre assistant de trading pour la Bourse de Tunis. Posez-moi vos questions sur :
+                <ul class="mb-0 mt-2">
+                    <li>L'analyse d'un titre (ex: BIAT, SFBT, BH)</li>
+                    <li>Les tendances du marché</li>
+                    <li>La gestion de portefeuille</li>
+                    <li>Les anomalies détectées</li>
+                </ul>
+            </div>
+        </div>
+        <div class="card-footer">
+            <div class="d-flex gap-2 mb-2 flex-wrap" id="suggestions">
+                <button class="suggestion-btn" onclick="askSuggestion(this)">Quel est l'état du marché aujourd'hui ?</button>
+                <button class="suggestion-btn" onclick="askSuggestion(this)">Analyse BIAT</button>
+                <button class="suggestion-btn" onclick="askSuggestion(this)">J'ai 5000 TND, que faire ?</button>
+                <button class="suggestion-btn" onclick="askSuggestion(this)">Alertes anomalies</button>
+            </div>
+            <div class="input-group">
+                <input type="text" class="form-control bg-dark text-light border-secondary" id="chatInput" placeholder="Tapez votre message..." autocomplete="off">
+                <button class="btn btn-accent" onclick="sendMessage()"><i class="bi bi-send"></i></button>
+                <button class="btn btn-outline-secondary" onclick="clearChat()" title="Effacer"><i class="bi bi-trash3"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+let onboardingStep = 0;
+const isOnboarding = new URLSearchParams(window.location.search).get('onboarding') === '1';
+const onboardingProfile = {};
+
+const onboardingQuestions = [
+    { key: 'experience', question: 'Bienvenue ! Pour personnaliser votre expérience, j\'aimerais mieux vous connaître. 🎓\n\nQuel est votre niveau d\'expérience en investissement ?\n\n1️⃣ Débutant — je commence à peine\n2️⃣ Intermédiaire — j\'ai quelques années d\'expérience\n3️⃣ Expert — je trade activement', answers: {'1': 'beginner', '2': 'intermediate', '3': 'expert', 'débutant': 'beginner', 'intermédiaire': 'intermediate', 'expert': 'expert'} },
+    { key: 'risk', question: 'Quelle est votre tolérance au risque ? ⚖️\n\n1️⃣ Conservateur — je préfère la sécurité\n2️⃣ Modéré — un équilibre risque/rendement\n3️⃣ Agressif — je vise le rendement maximal', answers: {'1': 'conservative', '2': 'moderate', '3': 'aggressive', 'conservateur': 'conservative', 'modéré': 'moderate', 'agressif': 'aggressive'} },
+    { key: 'horizon', question: 'Quel est votre horizon d\'investissement ? 📅\n\n1️⃣ Court terme — moins de 6 mois\n2️⃣ Moyen terme — 6 mois à 2 ans\n3️⃣ Long terme — plus de 2 ans', answers: {'1': 'short', '2': 'medium', '3': 'long', 'court': 'short', 'moyen': 'medium', 'long': 'long'} },
+    { key: 'capital', question: 'Quel capital souhaitez-vous investir (en TND) ? 💰\n\n(Tapez un montant, ex: 5000)', answers: null },
+    { key: 'goals', question: 'Quels sont vos objectifs d\'investissement ? 🎯\n\n1️⃣ Revenu passif (dividendes)\n2️⃣ Croissance du capital\n3️⃣ Trading actif (gains court terme)\n4️⃣ Épargne retraite', answers: {'1': 'revenu_passif', '2': 'croissance', '3': 'trading_actif', '4': 'retraite'} },
+    { key: 'age', question: 'Votre tranche d\'âge ? 👤\n\n1️⃣ 18-25 ans\n2️⃣ 25-35 ans\n3️⃣ 35-50 ans\n4️⃣ 50+ ans', answers: {'1': '18-25', '2': '25-35', '3': '35-50', '4': '50+'} },
+];
+
+chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+
+// Start onboarding if needed
+if (isOnboarding) {
+    startOnboarding();
+}
+
+function startOnboarding() {
+    onboardingStep = 0;
+    const q = onboardingQuestions[0];
+    addMessage(q.question.replace(/\n/g, '<br>'), false);
+}
+
+function processOnboardingAnswer(msg) {
+    const q = onboardingQuestions[onboardingStep];
+    let value = msg.trim().toLowerCase();
+
+    if (q.answers) {
+        value = q.answers[value] || q.answers[msg.trim()] || value;
+    } else if (q.key === 'capital') {
+        value = parseFloat(msg.replace(/[^0-9.]/g, '')) || 5000;
+    }
+
+    onboardingProfile[q.key] = value;
+    onboardingStep++;
+
+    if (onboardingStep < onboardingQuestions.length) {
+        const next = onboardingQuestions[onboardingStep];
+        setTimeout(() => addMessage(next.question.replace(/\n/g, '<br>'), false), 500);
+    } else {
+        // Send profile to server
+        onboardingProfile.completed = true;
+        fetch('/api/user/onboarding', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(onboardingProfile)}).then(() => {
+            setTimeout(() => {
+                addMessage('✅ Merci ! Votre profil investisseur est configuré. Je vais maintenant adapter mes recommandations à votre personnalité.<br><br>Vous pouvez me poser vos questions sur le marché tunisien !', false);
+                onboardingStep = -1;  // Done
+            }, 500);
+        });
+    }
+}
+
+function addMessage(text, isUser) {
+    const div = document.createElement('div');
+    div.className = `msg ${isUser ? 'msg-user' : 'msg-bot'} fade-in`;
+    div.innerHTML = `<div class="msg-label">${isUser ? '<i class="bi bi-person me-1"></i>Vous' : '<i class="bi bi-robot me-1"></i>Assistant Tradeili'}</div>${text}`;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function addTyping() {
+    const div = document.createElement('div');
+    div.className = 'msg msg-bot typing';
+    div.id = 'typing';
+    div.innerHTML = '<span>.</span><span>.</span><span>.</span>';
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeTyping() {
+    const el = document.getElementById('typing');
+    if (el) el.remove();
+}
+
+async function sendMessage() {
+    const msg = chatInput.value.trim();
+    if (!msg) return;
+    chatInput.value = '';
+    addMessage(msg, true);
+
+    // Handle onboarding flow
+    if (isOnboarding && onboardingStep >= 0 && onboardingStep < onboardingQuestions.length) {
+        processOnboardingAnswer(msg);
+        return;
+    }
+
+    addTyping();
+
+    try {
+        const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:msg})});
+        const d = await res.json();
+        removeTyping();
+        addMessage(d.success ? d.response.replace(/\n/g, '<br>') : 'Erreur: ' + d.error, false);
+    } catch(e) {
+        removeTyping();
+        addMessage('Erreur de connexion: ' + e.message, false);
+    }
+}
+
+function askSuggestion(btn) {
+    chatInput.value = btn.textContent;
+    sendMessage();
+}
+
+async function clearChat() {
+    await fetch('/api/chat/clear', {method:'POST'});
+    chatMessages.innerHTML = '<div class="msg msg-bot"><div class="msg-label"><i class="bi bi-robot me-1"></i>Assistant Tradeili</div>Conversation effacée. Comment puis-je vous aider ?</div>';
+}
+</script>
+{% endblock %}

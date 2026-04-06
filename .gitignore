@@ -1,1 +1,52 @@
-data/merged_csv/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables (contains API keys)
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Debug / temp scripts
+debug*.py
+test_*.py
+check_*.py
+start_server.py
+run.py
+chat_debug.log
+import_test.log
+server_stdout.log
+server_stderr.log
+
+# Data artifacts (keep structure, exclude large DB)
+data/portfolio.db
+data/users/
+data/rl/
+
+# Models (can be regenerated)
+models/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
