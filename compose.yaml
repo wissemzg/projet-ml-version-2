@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  tradeili:
+    build: .
+    container_name: tradeili_app
+    ports:
+      - "5502:5000"
+
+    env_file:
+      - .env
+
+    volumes:
+      # 🔥 Persist data (VERY important for your app)
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+    networks:
+      - tradeili_network
+
+    restart: unless-stopped
+
+    # Optional but useful for stability
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+networks:
+  tradeili_network:
+    driver: bridge

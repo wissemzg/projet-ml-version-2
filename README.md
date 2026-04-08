@@ -1,5 +1,7 @@
 # 🇹🇳 Tradeili — Intelligent Trading Assistant
 
+KCHIMI GHADA - ZAOUGA WISSEM
+
 **Tradeili — Assistant Intelligent de Trading pour la Bourse des Valeurs Mobilières de Tunisie**
 
 A full-stack AI-powered platform for market analysis, forecasting, anomaly detection, portfolio management, and multi-agent orchestration on the Tunisian stock exchange (BVMT).
@@ -155,25 +157,6 @@ Login/Register → Onboarding (Investment Profile) → Dashboard
 - pip
 - OpenAI API key (for chat & sentiment features)
 
-### Setup
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/bechir23/ihec-fintech.git
-cd ihec-fintech
-
-# 2. Create virtual environment (recommended)
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # Linux/Mac
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure environment
-copy .env.example .env
-# Edit .env and set your OPENAI_API_KEY
-```
 
 ### Dependencies
 Key packages: Flask, pandas, numpy, scikit-learn, statsmodels, xgboost, requests, python-dotenv, flask-cors.
@@ -468,12 +451,8 @@ python -m pytest tests/ --cov=modules --cov=agents --cov-report=html
 
 ---
 
-**Tradeili** Trading Assistant for IHEC CodeLab 2.0.
-
 ---
 
-
-https://github.com/user-attachments/assets/b5c2220b-ae1d-4a6c-b58d-7fdde37559de
 
 
 *Built for the modernization of financial market analysis in Tunisia 🇹🇳*
