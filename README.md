@@ -35,8 +35,7 @@ Tradeili is a complete intelligent trading assistant for the BVMT, featuring:
 - **Sentiment Analysis** — GPT-4o powered multilingual (French/Arabic) market sentiment via OpenAI API
 - **Anomaly Detection** — Statistical (Z-score, thresholds) + ML-based (Isolation Forest) market surveillance
 - **Portfolio Management** — Decision engine with explainability, risk profiles, portfolio simulation with Sharpe ratio, auto-created at onboarding
-- **Multi-Agent System** — 5-agent pipeline (Scraper → Forecast → Sentiment → Anomaly → Recommendation) with A2A workflow logging and safety guardrails
-- **Real-Time Scraping** — Background thread scraping ilboursa/bvmt with persistent JSON snapshots and daily JSONL tick logs
+- **Multi-Agent System** — 4-agent pipeline (Forecast → Sentiment → Anomaly → Recommendation) with A2A workflow logging and safety guardrails
 - **Reinforcement Learning** — RL-based portfolio optimization with personalized learning from user feedback
 - **GPT-4o Chat** — Context-aware AI assistant powered by OpenAI with portfolio data injection for natural language market Q&A
 - **SARIMA Dashboard** — AIC, BIC, ADF statistic, stationarity diagnostics per stock with comparative charts
